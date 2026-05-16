@@ -1,12 +1,16 @@
 package com.securemicro.shared.observability;
 
+// CONTROL: INI-16
+
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.web.server.WebFilter;
 
 /**
  * Spring Boot auto-configuration for shared observability infrastructure.
@@ -16,16 +20,19 @@ import org.springframework.context.annotation.Bean;
  * and is therefore applied automatically to any Spring Boot application
  * that declares {@code shared-observability} as a Maven dependency.
  *
- * <p>Responsibilities (TASK-005 scope — base scaffold):
+ * <p>Responsibilities (TASK-005 + TASK-006 scope):
  * <ul>
  *   <li>Bootstrap the auto-configuration entry point for the module.</li>
- *   <li>Declare a placeholder {@link ObservabilityProperties} bean for
+ *   <li>Declare the {@link ObservabilityProperties} bean for
  *       per-service customisation of log fields and metric tags.</li>
+ *   <li>Declare the {@link RequestLoggingFilter} bean that generates or
+ *       propagates {@code X-Correlation-ID}, extracts the authenticated
+ *       subject, and emits a structured JSON log event on every HTTP
+ *       exchange completion (TASK-006).</li>
  * </ul>
  *
  * <p>Later tasks extend this module with:
  * <ul>
- *   <li>TASK-006: {@code RequestLoggingFilter} + {@code logback-spring.xml}</li>
  *   <li>TASK-007: {@code AuditTrailService}</li>
  *   <li>TASK-008: {@code OtelConfiguration} + {@code application-observability.yml}</li>
  * </ul>
@@ -55,6 +62,7 @@ import org.springframework.context.annotation.Bean;
         }
 )
 @ConditionalOnClass(MeterRegistry.class)
+@EnableConfigurationProperties(ObservabilityProperties.class)
 public class SharedObservabilityAutoConfiguration {
 
     /**
@@ -71,5 +79,34 @@ public class SharedObservabilityAutoConfiguration {
     @ConditionalOnMissingBean
     public ObservabilityProperties observabilityProperties() {
         return new ObservabilityProperties();
+    }
+
+    /**
+     * Declares the {@link RequestLoggingFilter} as a Spring-managed
+     * {@link WebFilter} bean.
+     *
+     * <p>The filter is applied to every HTTP exchange and is responsible for:
+     * <ul>
+     *   <li>Generating or propagating {@code X-Correlation-ID}.</li>
+     *   <li>Extracting the authenticated subject from the
+     *       {@link org.springframework.security.core.context.ReactiveSecurityContextHolder}.</li>
+     *   <li>Emitting the structured JSON log event on exchange completion.</li>
+     * </ul>
+     *
+     * <p>The {@code @ConditionalOnMissingBean(WebFilter.class)} guard is
+     * intentionally omitted here because multiple {@code WebFilter} beans are
+     * expected in a WebFlux application (security filter chain, CORS, etc.).
+     * Services that need to suppress this filter can exclude the auto-configuration
+     * class via {@code spring.autoconfigure.exclude}.
+     *
+     * <p>CONTROL: INI-16
+     *
+     * @param properties the resolved observability configuration
+     * @return the configured {@link RequestLoggingFilter}
+     */
+    @Bean
+    @ConditionalOnMissingBean(RequestLoggingFilter.class)
+    public RequestLoggingFilter requestLoggingFilter(ObservabilityProperties properties) {
+        return new RequestLoggingFilter(properties);
     }
 }

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    logback-spring.xml — Structured logging configuration for shared-observability.
+
+    CONTROL: INI-16
+
+    Profile strategy
+    ════════════════
+    • prod  → CONSOLE appender with LogstashEncoder (pure JSON, one object per line).
+              Downstream log aggregators (Elastic, Splunk, Loki) consume this format.
+    • dev   → CONSOLE appender with a human-readable pattern (colour-coded, easier to
+              read locally).  Falls back to JSON if the profile is neither "dev" nor
+              absent (i.e., any unrecognised profile behaves like prod).
+    • default (no profile) → same as dev for local developer convenience.
+
+    JSON field mapping (plan section 4.3)
+    ══════════════════════════════════════
+    The LogstashEncoder automatically includes:
+      • @timestamp   — ISO-8601 UTC (maps to "timestamp" in the log schema)
+      • level        — log level
+      • message      — formatted log message
+    All MDC fields set by RequestLoggingFilter are included automatically
+    because LogstashEncoder always renders the full MDC map as top-level JSON
+    fields.  No explicit <includeMdcKeyName/> configuration is required.
+
+    The ten mandatory fields from plan section 4.3 land in the JSON output as:
+      timestamp       ← @timestamp (LogstashEncoder built-in)
+      correlation-id  ← MDC key "correlation-id"
+      trace-id        ← MDC key "trace-id"
+      span-id         ← MDC key "span-id"
+      http.method     ← MDC key "http.method"
+      http.path       ← MDC key "http.path"
+      http.status     ← MDC key "http.status"
+      duration_ms     ← MDC key "duration_ms"
+      auth.subject    ← MDC key "auth.subject"
+      service.name    ← MDC key "service.name"
+      service.version ← MDC key "service.version"
+-->
+<configuration scan="false">
+
+    <!-- ================================================================
+         Production profile — pure JSON via LogstashEncoder
+         ================================================================ -->
+    <springProfile name="prod">
+
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <!--
+                    Rename the built-in "@timestamp" field to "timestamp" so
+                    that the log schema matches plan section 4.3 exactly.
+                -->
+                <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
+                <timeZone>UTC</timeZone>
+                <!--
+                    Include caller data (class, method, line) only when
+                    explicitly requested — disabled by default to keep the
+                    JSON payload lean in production.
+                -->
+                <includeCallerData>false</includeCallerData>
+                <!--
+                    The LogstashEncoder writes all MDC fields as top-level
+                    JSON properties automatically; no additional configuration
+                    is needed for the RequestLoggingFilter MDC fields.
+                -->
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+    </springProfile>
+
+    <!-- ================================================================
+         Default / dev profile — human-readable pattern
+         ================================================================ -->
+    <springProfile name="!prod">
+
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <!--
+                    Pattern includes the most important MDC fields inline so
+                    developers can read them without a JSON parser.
+                    Full MDC is still available via %mdc for debugging.
+                -->
+                <pattern>
+                    %d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%cyan(%thread)] %logger{36} %magenta([%X{correlation-id:-no-cid}]) - %msg%n
+                </pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+    </springProfile>
+
+</configuration>

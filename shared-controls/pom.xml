@@ -31,15 +31,14 @@
     <dependencies>
 
         <!-- ============================================================
-             Spring Boot Starter Web — provides the Servlet-based HTTP
-             stack (DispatcherServlet, Filter chain) used by this shared
-             library.  Templates that are themselves WebFlux-based still
-             include this lib as a compile-time dependency so its filters
-             and @ControllerAdvice classes are on the classpath.
+             Spring Boot Starter WebFlux — provides the reactive HTTP
+             stack (Netty + WebFlux) used by all services in this repo.
+             SecurityHeadersFilter implements WebFilter (reactive contract).
+             CONTROL: RN-10 — security headers injected via WebFilter.
              ============================================================ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
             <!-- version managed by parent BOM (spring-boot.version) -->
         </dependency>
 
@@ -55,22 +54,9 @@
         </dependency>
 
         <!-- ============================================================
-             Jakarta Servlet API — provided scope because the runtime
-             container (embedded Tomcat via spring-boot-starter-web)
-             already ships the implementation.  Declared explicitly so
-             that Filter and HttpServletRequest are resolvable at compile
-             time without pulling a second copy into the fat JAR.
-             ============================================================ -->
-        <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <!-- version managed by parent BOM via spring-boot-dependencies -->
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- ============================================================
-             Spring Boot Autoconfigure — required for @AutoConfiguration
-             and AutoConfigurationImportSelector on the classpath.
+             Spring Boot Autoconfigure — required for @AutoConfiguration,
+             @ConditionalOnMissingBean and AutoConfigurationImportSelector
+             on the classpath.
              ============================================================ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -79,8 +65,8 @@
         </dependency>
 
         <!-- ============================================================
-             Spring Boot Test — unit and slice test support.
-             Scope: test only — not shipped in the published JAR.
+             Spring Boot Test — unit and slice test support (@WebFluxTest,
+             WebTestClient, reactor-test). Scope: test only.
              ============================================================ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
