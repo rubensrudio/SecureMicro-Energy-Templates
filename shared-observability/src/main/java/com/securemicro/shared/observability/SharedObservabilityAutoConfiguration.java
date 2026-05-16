@@ -12,6 +12,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.server.WebFilter;
 
+// CONTROL: INI-17
+
 /**
  * Spring Boot auto-configuration for shared observability infrastructure.
  *
@@ -79,6 +81,24 @@ public class SharedObservabilityAutoConfiguration {
     @ConditionalOnMissingBean
     public ObservabilityProperties observabilityProperties() {
         return new ObservabilityProperties();
+    }
+
+    /**
+     * Declares the {@link AuditTrailService} as a Spring-managed bean.
+     *
+     * <p>The {@code @ConditionalOnMissingBean} guard lets consuming services
+     * override the default implementation by declaring their own
+     * {@link AuditTrailService} bean — consistent with the Spring Boot
+     * auto-configuration contract.
+     *
+     * <p>CONTROL: INI-17
+     *
+     * @return the default {@link AuditTrailService}
+     */
+    @Bean
+    @ConditionalOnMissingBean(AuditTrailService.class)
+    public AuditTrailService auditTrailService() {
+        return new AuditTrailService();
     }
 
     /**
