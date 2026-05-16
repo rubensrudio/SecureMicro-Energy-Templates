@@ -9,6 +9,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -98,6 +99,10 @@ class VaultFailFastTest {
      * Walks the exception cause chain to verify that at least one message
      * references Vault connectivity, providing a "clear message" as required
      * by the spec edge case.
+     *
+     * <p>This assertion is BINDING. The spec mandates a "clear message" on
+     * startup failure — a soft warn/log is insufficient to enforce control INI-12.
+     * If no keyword is found in the exception chain, the test MUST fail.
      */
     private void assertExceptionChainContainsVaultMessage(Throwable ex) {
         Throwable current = ex;
@@ -116,13 +121,13 @@ class VaultFailFastTest {
             }
             current = current.getCause();
         }
-        if (!found) {
-            // Tolerate: the exception itself is sufficient evidence of fail-fast;
-            // the message constraint is a "should" not a hard "must" in this test.
-            // Log the actual chain for diagnostic purposes during CI failures.
-            org.slf4j.LoggerFactory.getLogger(VaultFailFastTest.class)
-                    .warn("[DIAG] Vault fail-fast exception chain did not contain expected keywords. "
-                            + "Root exception: {}", ex.getMessage());
-        }
+        // CONTROL: INI-12 — enforce "clear message" requirement from the spec.
+        // Replacing the previous logger.warn() with a binding assertion ensures
+        // this test constitutes real evidence of the fail-fast control.
+        assertThat(found)
+                .as("fail-fast exception chain must reference Vault connectivity "
+                        + "(keywords: vault | connect | refused | config data | could not resolve). "
+                        + "Exception chain root message: " + ex.getMessage())
+                .isTrue();
     }
 }
