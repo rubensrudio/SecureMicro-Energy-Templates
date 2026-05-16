@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.securemicro</groupId>
+        <artifactId>secure-micro-energy-templates</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>shared-observability</artifactId>
+    <packaging>jar</packaging>
+    <name>SecureMicro :: Shared Observability</name>
+    <description>
+        Structured JSON logging (Logstash Logback Encoder), Micrometer metrics,
+        and OpenTelemetry trace propagation (W3C TraceContext).
+        Implements CONTROL: INI-16, INI-17, INI-18, INI-19, INI-21.
+        Phase 1 — implementation in TASK-005 / TASK-006 / TASK-007 / TASK-008.
+    </description>
+
+</project>
