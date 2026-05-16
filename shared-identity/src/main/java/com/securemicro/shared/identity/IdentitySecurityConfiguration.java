@@ -12,9 +12,15 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoders;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -35,6 +41,8 @@ import java.util.Map;
  *   <li>Reads the Keycloak issuer URI exclusively from the {@code KEYCLOAK_ISSUER_URI}
  *       environment variable / system property — never from a hardcoded literal
  *       (CONTROL: INI-06).</li>
+ *   <li>Validates the {@code aud} claim against {@code JWT_AUDIENCE} to prevent
+ *       Token Confusion Attacks (CWE-284) (CONTROL: INI-07).</li>
  *   <li>Protects all paths except {@code /actuator/health/**} and
  *       {@code /actuator/prometheus} (CONTROL: INI-08).</li>
  *   <li>Returns HTTP 401 with a generic body for absent or invalid tokens
@@ -71,6 +79,20 @@ public class IdentitySecurityConfiguration {
     // CONTROL: INI-06
     @Value("${KEYCLOAK_ISSUER_URI}")
     private String issuerUri;
+
+    /**
+     * Expected audience ({@code aud}) claim value for tokens accepted by this
+     * resource server — injected from the {@code JWT_AUDIENCE} environment
+     * variable.  Absence of this variable at startup causes a fatal bind
+     * failure, mirroring the behaviour of {@code KEYCLOAK_ISSUER_URI}.
+     *
+     * <p>CONTROL: INI-07 — audience validation prevents Token Confusion Attacks
+     * (CWE-284) where a token minted for another client in the same Keycloak
+     * realm would otherwise be accepted.
+     */
+    // CONTROL: INI-07
+    @Value("${JWT_AUDIENCE}")
+    private String expectedAudience;
 
     /** Generic error body written for HTTP 401 responses. */
     private static final byte[] BODY_UNAUTHORIZED =
@@ -158,16 +180,16 @@ public class IdentitySecurityConfiguration {
      *       (CONTROL: INI-07).</li>
      *   <li>Issuer ({@code iss}) validation against {@code KEYCLOAK_ISSUER_URI}
      *       (CONTROL: INI-06, INI-07).</li>
+     *   <li>Audience ({@code aud}) validation against {@code JWT_AUDIENCE},
+     *       preventing Token Confusion Attacks (CWE-284) where a token issued
+     *       to another client of the same Keycloak realm would otherwise be
+     *       accepted (CONTROL: INI-07).</li>
      * </ul>
-     *
-     * <p>Audience ({@code aud}) validation is expected to be enforced by the
-     * consuming application via a custom validator registered on this decoder
-     * or via Spring Security's default audience validator when the
-     * {@code spring.security.oauth2.resourceserver.jwt.audiences} property is set.
      *
      * <p>CONTROL: INI-06 INI-07
      *
-     * @return a {@link ReactiveJwtDecoder} backed by Keycloak's JWKS endpoint.
+     * @return a {@link ReactiveJwtDecoder} backed by Keycloak's JWKS endpoint
+     *         with combined issuer + timestamp + audience validation.
      */
     // CONTROL: INI-06
     // CONTROL: INI-07
@@ -176,7 +198,27 @@ public class IdentitySecurityConfiguration {
         // ReactiveJwtDecoders.fromIssuerLocation performs OIDC discovery
         // against KEYCLOAK_ISSUER_URI and fetches the JWKS URI from the
         // openid-configuration document. No hardcoded URLs.
-        return ReactiveJwtDecoders.fromIssuerLocation(issuerUri);
+        NimbusReactiveJwtDecoder decoder =
+                (NimbusReactiveJwtDecoder) ReactiveJwtDecoders.fromIssuerLocation(issuerUri);
+
+        // Audience validator — rejects tokens whose aud claim does not contain
+        // expectedAudience.  This prevents Token Confusion Attacks (CWE-284)
+        // where a token minted for a different client in the same Keycloak realm
+        // would otherwise pass signature + issuer checks.
+        // CONTROL: INI-07
+        OAuth2TokenValidator<Jwt> audienceValidator =
+                new JwtClaimValidator<List<String>>(
+                        JwtClaimNames.AUD,
+                        aud -> aud != null && aud.contains(expectedAudience));
+
+        // Combine default validators (issuer + timestamp) with audience validator.
+        OAuth2TokenValidator<Jwt> combined =
+                new DelegatingOAuth2TokenValidator<>(
+                        JwtValidators.createDefaultWithIssuer(issuerUri),
+                        audienceValidator);
+
+        decoder.setJwtValidator(combined);
+        return decoder;  // CONTROL: INI-07
     }
 
     /**

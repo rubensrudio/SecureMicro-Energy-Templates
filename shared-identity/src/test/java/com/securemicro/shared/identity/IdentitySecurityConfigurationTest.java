@@ -388,4 +388,57 @@ class IdentitySecurityConfigurationTest {
                 // care that it is NOT rejected by security (not 401/403).
                 .expectStatus().isOk();
     }
+
+    /**
+     * Token Confusion Attack prevention: a JWT with a valid signature and issuer
+     * but with {@code aud: wrong-audience} must be rejected with HTTP 401.
+     *
+     * <p>Verifies CONTROL: INI-07 — audience ({@code aud}) validation.
+     * Without the {@link JwtClaimValidator} registered in {@link
+     * IdentitySecurityConfiguration#jwtDecoder()}, a token issued to a
+     * different client of the same Keycloak realm would be accepted (CWE-284).
+     *
+     * <p>Also asserts that no internal exception detail leaks in the response
+     * body (CONTROL: RN-10).
+     *
+     * <p>CONTROL: INI-07 RN-10
+     */
+    @Test
+    @DisplayName("Token with wrong audience -> 401 (Token Confusion Attack prevention, INI-07)")
+    void givenTokenWithWrongAudience_whenRequestSecuredEndpoint_thenHttp401WithGenericBody()
+            throws Exception {
+        // CONTROL: INI-07
+        // Mint a JWT that is signed with the correct RSA key and carries the
+        // correct issuer, but targets a different client audience.
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject("test-user-wrong-aud")
+                .issuer(issuerUrl)
+                .audience("wrong-audience")   // <-- different client in same realm
+                .expirationTime(Date.from(Instant.now().plusSeconds(3600)))
+                .issueTime(Date.from(Instant.now()))
+                .claim("realm_access", Map.of("roles", List.of("ROLE_SERVICE_USER")))
+                .build();
+
+        JWSSigner signer = new RSASSASigner(rsaKey);
+        SignedJWT signedJWT = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .keyID(rsaKey.getKeyID())
+                        .build(),
+                claims);
+        signedJWT.sign(signer);
+        String token = signedJWT.serialize();
+
+        webTestClient.get()
+                .uri("/api/v1/hello")
+                .header("Authorization", "Bearer " + token)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().contentType("application/json")
+                .expectBody()
+                .jsonPath("$.error").isEqualTo("unauthorized")
+                // CONTROL: RN-10 — no internal detail in the response
+                .jsonPath("$.exception").doesNotExist()
+                .jsonPath("$.message").doesNotExist()
+                .jsonPath("$.trace").doesNotExist();
+    }
 }
