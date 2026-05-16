@@ -48,7 +48,12 @@
                 <!--
                     Rename the built-in "@timestamp" field to "timestamp" so
                     that the log schema matches plan section 4.3 exactly.
+                    Suppress "@version" field (not used in this schema).
                 -->
+                <fieldNames>
+                    <timestamp>timestamp</timestamp>
+                    <version>[ignore]</version>
+                </fieldNames>
                 <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
                 <timeZone>UTC</timeZone>
                 <!--
