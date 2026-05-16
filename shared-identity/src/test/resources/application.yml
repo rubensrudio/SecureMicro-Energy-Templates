@@ -1,0 +1,17 @@
+# Test configuration for shared-identity module.
+# KEYCLOAK_ISSUER_URI is set programmatically by IdentitySecurityConfigurationTest
+# via the @SpringBootTest properties attribute after WireMock starts on a dynamic port.
+
+spring:
+  main:
+    web-application-type: reactive
+
+# JWT_AUDIENCE must match the aud claim in test JWTs minted by mintValidToken().
+# CONTROL: INI-07 — audience validation requires this property to be present.
+JWT_AUDIENCE: tmpl-rest-api
+
+# Disable Spring Boot Actuator auto-configuration in tests — the stub
+# controllers in TestSecurityApplication handle /actuator/* paths directly.
+management:
+  endpoints:
+    enabled-by-default: false
