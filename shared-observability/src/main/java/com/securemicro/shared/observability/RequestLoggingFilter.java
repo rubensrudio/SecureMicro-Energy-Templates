@@ -21,9 +21,10 @@ import java.util.UUID;
  *
  * <p>Responsibilities (per plan section 4.3):
  * <ol>
- *   <li>Generate or propagate {@code X-Correlation-ID} — if the incoming
- *       request already carries the header the value is reused; otherwise a
- *       new UUID is generated and the header is added to the response.</li>
+ *   <li>Generate or propagate {@code X-Correlation-ID} -- if the incoming
+ *       request already carries the header the value is reused (after
+ *       sanitization to prevent log injection); otherwise a new UUID is
+ *       generated and the header is added to the response.</li>
  *   <li>Extract {@code auth.subject} from the reactive {@link SecurityContext}
  *       if the request is authenticated (JWT bearer token); otherwise the
  *       field is set to {@code anonymous}.</li>
@@ -49,7 +50,7 @@ import java.util.UUID;
  * (as {@code trace_id} and {@code span_id}). This filter reads those MDC
  * keys and re-publishes them under the canonical names used by the log
  * schema ({@code trace-id} and {@code span-id}). If the OTel agent is absent
- * (graceful degradation — AC INI-21) the fields are logged as {@code none}.
+ * (graceful degradation -- AC INI-21) the fields are logged as {@code none}.
  *
  * <p>CONTROL: INI-16
  */
@@ -60,7 +61,7 @@ public class RequestLoggingFilter implements WebFilter {
     /** Header name for correlation-id propagation (plan section 5.3). */
     static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
 
-    /** MDC key names — must match the field names in plan section 4.3. */
+    /** MDC key names -- must match the field names in plan section 4.3. */
     static final String MDC_CORRELATION_ID  = "correlation-id";
     static final String MDC_AUTH_SUBJECT    = "auth.subject";
     static final String MDC_HTTP_METHOD     = "http.method";
@@ -112,7 +113,7 @@ public class RequestLoggingFilter implements WebFilter {
         final long startNanos = System.nanoTime();
 
         // ---------------------------------------------------------------- //
-        //  Step 1 — resolve correlation-id                                 //
+        //  Step 1 -- resolve correlation-id                                 //
         // ---------------------------------------------------------------- //
         final String correlationId = resolveCorrelationId(exchange);
 
@@ -123,7 +124,7 @@ public class RequestLoggingFilter implements WebFilter {
                 .add(CORRELATION_ID_HEADER, correlationId);
 
         // ---------------------------------------------------------------- //
-        //  Step 2 — extract auth.subject from the reactive SecurityContext  //
+        //  Step 2 -- extract auth.subject from the reactive SecurityContext  //
         // ---------------------------------------------------------------- //
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
@@ -137,7 +138,7 @@ public class RequestLoggingFilter implements WebFilter {
                 })
                 .defaultIfEmpty("anonymous")
                 // -------------------------------------------------------- //
-                //  Step 3 — run the rest of the filter chain, then log     //
+                //  Step 3 -- run the rest of the filter chain, then log     //
                 // -------------------------------------------------------- //
                 .flatMap(subject ->
                         chain.filter(exchange)
@@ -153,16 +154,46 @@ public class RequestLoggingFilter implements WebFilter {
      * Reads {@code X-Correlation-ID} from the incoming request headers.
      * If the header is absent or blank a new UUID v4 is generated.
      *
+     * <p>When the header is present, the raw value is sanitized before being
+     * stored in the MDC to prevent log injection (OWASP A09 / CWE-117).
+     * Control characters (including newline, carriage-return) are stripped and
+     * the value is capped at 128 characters.
+     *
      * @param exchange the current server exchange
-     * @return the resolved correlation-id string
+     * @return the resolved and sanitized correlation-id string
      */
     private String resolveCorrelationId(ServerWebExchange exchange) {
         String fromHeader = exchange.getRequest()
                                     .getHeaders()
                                     .getFirst(CORRELATION_ID_HEADER);
         return (fromHeader != null && !fromHeader.isBlank())
-                ? fromHeader
+                ? sanitizeCorrelationId(fromHeader)
                 : UUID.randomUUID().toString();
+    }
+
+    /**
+     * Sanitizes an externally supplied correlation-id value before it is
+     * written to the MDC (log injection guard -- OWASP A09 / CWE-117).
+     *
+     * <p>Two transformations are applied:
+     * <ol>
+     *   <li>All Unicode control characters (U+0000-U+001F, U+007F-U+009F) are
+     *       removed. This eliminates newline, carriage-return, tab, and other
+     *       characters that could forge synthetic log lines in text appenders.</li>
+     *   <li>The result is capped at 128 characters to bound MDC memory usage
+     *       and prevent abnormally large values from bloating logs.</li>
+     * </ol>
+     *
+     * @param raw the raw header value received from the HTTP client; must not be null
+     * @return the sanitized, length-limited correlation-id
+     */
+    // CONTROL: INI-16
+    static String sanitizeCorrelationId(String raw) {
+        if (raw == null) return null;
+        // Remove control characters: U+0000-U+001F (C0 controls) and U+007F-U+009F (DEL + C1 controls)
+        String cleaned = raw.replaceAll("[\\u0000-\\u001F\\u007F-\\u009F]", "");
+        // Cap length to prevent abnormally large MDC entries
+        return cleaned.substring(0, Math.min(128, cleaned.length()));
     }
 
     /**
@@ -226,7 +257,7 @@ public class RequestLoggingFilter implements WebFilter {
 
     /**
      * Reads an OTel-injected MDC field, returning {@code "none"} if the
-     * OTel agent is not active (graceful degradation — AC INI-21).
+     * OTel agent is not active (graceful degradation -- AC INI-21).
      *
      * @param key the MDC key set by the OTel Java agent
      * @return the field value or {@code "none"} if absent

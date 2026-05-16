@@ -8,6 +8,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.logstash.logback.encoder.LogstashEncoder;
+import net.logstash.logback.fieldnames.LogstashFieldNames;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +43,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * re-encode the captured {@link ILoggingEvent} with {@link LogstashEncoder}
  * to obtain the JSON payload.  This approach tests the real MDC population
  * logic without requiring a running Spring context.
+ *
+ * <p>The encoder is configured programmatically to rename {@code @timestamp}
+ * to {@code timestamp} (matching the {@code <fieldNames>} directive in
+ * {@code logback-spring.xml} and the schema in plan section 4.3).
  *
  * <p>CONTROL: INI-16
  */
@@ -110,22 +115,34 @@ class RequestLoggingFilterTest {
     }
 
     /**
-     * Serialises the captured log event to a JSON string using
+     * Serialises the captured log event to a JSON node using
      * {@link LogstashEncoder} so we can assert on the JSON payload that
      * would be written to stdout in a production deployment.
      *
+     * <p>The encoder is configured to rename {@code @timestamp} to
+     * {@code timestamp} and suppress {@code @version}, matching the
+     * {@code <fieldNames>} directive in {@code logback-spring.xml}
+     * (plan section 4.3 schema).
+     *
      * @param event the captured Logback event
-     * @return the JSON string produced by the encoder
+     * @return the JSON node produced by the encoder
      * @throws Exception if encoding or parsing fails
      */
     private JsonNode encodeToJson(ILoggingEvent event) throws Exception {
+        // Mirror the <fieldNames> config in logback-spring.xml so tests
+        // assert the same field names that production output emits.
+        LogstashFieldNames fieldNames = new LogstashFieldNames();
+        fieldNames.setTimestamp("timestamp");
+        fieldNames.setVersion("[ignore]");
+
         LogstashEncoder encoder = new LogstashEncoder();
+        encoder.setFieldNames(fieldNames);
         encoder.start();
         byte[] bytes = encoder.encode(event);
         encoder.stop();
         String json = new String(bytes, StandardCharsets.UTF_8).trim();
         // LogstashEncoder appends a newline; strip it before parsing.
-        if (json.endsWith("\n")) {
+        if (json.length() > 0 && json.charAt(json.length() - 1) == '\n') {
             json = json.substring(0, json.length() - 1);
         }
         return new ObjectMapper().readTree(json);
@@ -150,26 +167,24 @@ class RequestLoggingFilterTest {
         // ---- Act ------------------------------------------------------ //
         runFilter(filter, exchange, HttpStatus.OK);
 
-        // ---- Assert — one log event captured -------------------------- //
+        // ---- Assert --- one log event captured ------------------------ //
         assertThat(listAppender.list).hasSize(1);
         ILoggingEvent event = listAppender.list.get(0);
 
         // Re-encode to JSON (simulates prod LogstashEncoder output)
         JsonNode json = encodeToJson(event);
 
-        // The JSON must be parseable — verified implicitly by encodeToJson.
+        // 1. timestamp -- renamed from @timestamp via <fieldNames> in logback-spring.xml (plan 4.3)
+        assertThat(json.has("timestamp")).isTrue();
 
-        // 1. timestamp — LogstashEncoder emits "@timestamp"
-        assertThat(json.has("@timestamp")).isTrue();
-
-        // 2. correlation-id — from MDC
+        // 2. correlation-id -- from MDC
         assertThat(json.has("correlation-id")).isTrue();
         assertThat(json.get("correlation-id").asText()).isNotBlank();
 
-        // 3. trace-id — from MDC (no OTel agent in test → "none")
+        // 3. trace-id -- from MDC (no OTel agent in test -> "none")
         assertThat(json.has("trace-id")).isTrue();
 
-        // 4. span-id — from MDC (no OTel agent in test → "none")
+        // 4. span-id -- from MDC (no OTel agent in test -> "none")
         assertThat(json.has("span-id")).isTrue();
 
         // 5. http.method
@@ -184,11 +199,11 @@ class RequestLoggingFilterTest {
         assertThat(json.has("http.status")).isTrue();
         assertThat(json.get("http.status").asText()).isEqualTo("200");
 
-        // 8. duration_ms — must be present and numeric (>= 0)
+        // 8. duration_ms -- must be present and numeric (>= 0)
         assertThat(json.has("duration_ms")).isTrue();
         assertThat(json.get("duration_ms").asLong()).isGreaterThanOrEqualTo(0L);
 
-        // 9. auth.subject — anonymous because no SecurityContext
+        // 9. auth.subject -- anonymous because no SecurityContext
         assertThat(json.has("auth.subject")).isTrue();
         assertThat(json.get("auth.subject").asText()).isEqualTo("anonymous");
 
@@ -196,7 +211,7 @@ class RequestLoggingFilterTest {
         assertThat(json.has("service.name")).isTrue();
         assertThat(json.get("service.name").asText()).isEqualTo("test-service");
 
-        // 11. service.version (bonus — also mandatory per schema)
+        // 11. service.version (bonus -- also mandatory per schema)
         assertThat(json.has("service.version")).isTrue();
         assertThat(json.get("service.version").asText()).isEqualTo("1.2.3");
     }
@@ -232,7 +247,7 @@ class RequestLoggingFilterTest {
             return Mono.empty();
         };
 
-        // ---- Act —- subscribe with a SecurityContext carrying the jwt -- //
+        // ---- Act -- subscribe with a SecurityContext carrying the jwt -- //
         StepVerifier.create(
                 filter.filter(exchange, chain)
                       .contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth))
@@ -266,7 +281,7 @@ class RequestLoggingFilterTest {
         // ---- Act ------------------------------------------------------ //
         runFilter(filter, exchange, HttpStatus.OK);
 
-        // ---- Assert — MDC correlation-id matches the incoming header --- //
+        // ---- Assert -- MDC correlation-id matches the incoming header -- //
         assertThat(listAppender.list).hasSize(1);
         JsonNode json = encodeToJson(listAppender.list.get(0));
 
@@ -294,7 +309,7 @@ class RequestLoggingFilterTest {
         // ---- Act ------------------------------------------------------ //
         runFilter(filter, exchange, HttpStatus.OK);
 
-        // ---- Assert — correlation-id is a non-blank generated value ---- //
+        // ---- Assert -- correlation-id is a non-blank generated value --- //
         assertThat(listAppender.list).hasSize(1);
         JsonNode json = encodeToJson(listAppender.list.get(0));
 
@@ -335,6 +350,42 @@ class RequestLoggingFilterTest {
     }
 
     @Test
+    @DisplayName("X-Correlation-ID with newline stripped -- log injection guard (OWASP A09 / CWE-117)")
+    void correlationId_newlineInHeader_isStrippedFromMdc() throws Exception {
+
+        // ---- Arrange -------------------------------------------------- //
+        // Simulate an attacker injecting a newline (0x0A) to forge a second log
+        // line in text-based appenders. After sanitizeCorrelationId(), the value
+        // stored in the MDC must not contain any control characters.
+        final String maliciousHeader = "legit-id\nfake-log-line";
+
+        RequestLoggingFilter filter = buildFilter();
+
+        MockServerHttpRequest request = MockServerHttpRequest
+                .method(HttpMethod.GET, "/api/v1/resources")
+                .header(RequestLoggingFilter.CORRELATION_ID_HEADER, maliciousHeader)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        // ---- Act ------------------------------------------------------ //
+        runFilter(filter, exchange, HttpStatus.OK);
+
+        // ---- Assert -- correlation-id in JSON log must NOT contain
+        //               newline or carriage-return characters.            //
+        assertThat(listAppender.list).hasSize(1);
+        JsonNode json = encodeToJson(listAppender.list.get(0));
+
+        String cidInLog = json.get("correlation-id").asText();
+
+        // The newline (0x0A) must have been stripped by sanitizeCorrelationId().
+        assertThat(cidInLog).doesNotContain("\n");
+        assertThat(cidInLog).doesNotContain("\r");
+
+        // Length must be capped at 128 characters.
+        assertThat(cidInLog.length()).isLessThanOrEqualTo(128);
+    }
+
+    @Test
     @DisplayName("log output is valid JSON parseable by ObjectMapper")
     void logOutput_isValidJson() throws Exception {
 
@@ -349,9 +400,9 @@ class RequestLoggingFilterTest {
         // ---- Act ------------------------------------------------------ //
         runFilter(filter, exchange, HttpStatus.NO_CONTENT);
 
-        // ---- Assert — encodeToJson() already validates parseability,
-        //              but we make it explicit here with an additional
-        //              assertion on the root node type.
+        // ---- Assert -- encodeToJson() already validates parseability,
+        //               but we make it explicit here with an additional
+        //               assertion on the root node type.
         assertThat(listAppender.list).hasSize(1);
         JsonNode json = encodeToJson(listAppender.list.get(0));
 
@@ -359,7 +410,8 @@ class RequestLoggingFilterTest {
         assertThat(json.isObject()).isTrue();
 
         // Verify all 10 mandatory schema fields are present (per plan 4.3)
-        assertThat(json.has("@timestamp")).isTrue();        // timestamp
+        // "timestamp" is the renamed form of @timestamp -- see <fieldNames> in logback-spring.xml
+        assertThat(json.has("timestamp")).isTrue();         // timestamp (plan 4.3)
         assertThat(json.has("correlation-id")).isTrue();   // correlation-id
         assertThat(json.has("trace-id")).isTrue();         // trace-id
         assertThat(json.has("span-id")).isTrue();          // span-id
