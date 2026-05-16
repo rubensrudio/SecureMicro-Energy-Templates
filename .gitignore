@@ -52,7 +52,7 @@ keycloak-client-secret.txt
 # who may have Gradle caches nearby)
 # -----------------------------------------------------------------------------
 .gradle/
-build/
+/build/
 !**/src/**/build/
 !**/src/**/build/**
 
