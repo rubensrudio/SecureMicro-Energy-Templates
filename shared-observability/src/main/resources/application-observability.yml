@@ -1,0 +1,47 @@
+# =============================================================================
+# application-observability.yml
+#
+# Activated via spring.profiles.active=observability (or explicitly included).
+#
+# This profile configures OpenTelemetry SDK properties consumed by the
+# opentelemetry-spring-boot-starter auto-configuration.  No programmatic SDK
+# wiring is required in application code — the starter reads these properties
+# directly and registers the correct propagator, exporter, and sampler beans.
+#
+# CONTROL: INI-19 | INI-21
+# =============================================================================
+
+otel:
+  # W3C TraceContext propagation — CONTROL: INI-19
+  # Configures the global TextMapPropagator used for both inbound extraction
+  # (reading traceparent/tracestate from incoming requests) and outbound
+  # injection (writing traceparent/tracestate to outgoing requests / clients).
+  # "baggage" adds W3C Baggage support for arbitrary key-value propagation.
+  propagators: tracecontext,baggage  # CONTROL: INI-19
+
+  exporter:
+    otlp:
+      # OTLP/HTTP endpoint for trace export.
+      # This is an infrastructure address, NOT a secret — safe to supply via
+      # environment variable or application properties.
+      # Fallback: http://localhost:4318 (standard OTLP/HTTP port, used by the
+      # OTel Collector and by Jaeger all-in-one mode in reference-deploy).
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}  # CONTROL: INI-19
+
+  sdk:
+    # Set to true to disable the entire OTel SDK (e.g., in unit tests that
+    # should not incur OTel initialisation overhead).  Defaults to false so
+    # that traces are exported in all non-test environments.
+    disabled: false  # CONTROL: INI-21 — graceful degradation is handled by the SDK, not by disabling it
+
+management:
+  tracing:
+    # Enable Spring Boot / Micrometer Tracing integration.
+    # When enabled, Micrometer Tracing bridges OTel spans so that both
+    # @Observed annotations and the OTel auto-instrumentation produce spans
+    # that are exported via the same OTLP exporter defined above.
+    enabled: true
+    sampling:
+      # Sample 100 % of requests.  Reduce to 0.1 (10 %) in high-throughput
+      # production environments to limit telemetry volume and cost.
+      probability: 1.0
