@@ -42,10 +42,9 @@
          Properties
          ================================================================ -->
     <properties>
-        <!-- Java source / target compatibility -->
+        <!-- Java release compatibility: uses the release flag instead of
+             source/target to restrict the bootclasspath to Java 17 API. -->
         <java.version>17</java.version>
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -188,8 +187,7 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
                     <configuration>
-                        <source>${java.version}</source>
-                        <target>${java.version}</target>
+                        <release>${java.version}</release>
                         <encoding>${project.build.sourceEncoding}</encoding>
                     </configuration>
                 </plugin>
