@@ -5,6 +5,12 @@
                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ================================================================
+         shared-controls — reusable security controls library
+         Inherits version management from the root BOM.
+         CONTROL: RN-10 | INI-04 (see tmpl-rest-api/control-mapping.md)
+         ================================================================ -->
+
     <parent>
         <groupId>com.securemicro</groupId>
         <artifactId>secure-micro-energy-templates</artifactId>
@@ -21,5 +27,67 @@
         Implements CONTROL: RN-10, INI-04 (see control-mapping.md).
         Phase 1 — implementation in TASK-003 / TASK-004.
     </description>
+
+    <dependencies>
+
+        <!-- ============================================================
+             Spring Boot Starter Web — provides the Servlet-based HTTP
+             stack (DispatcherServlet, Filter chain) used by this shared
+             library.  Templates that are themselves WebFlux-based still
+             include this lib as a compile-time dependency so its filters
+             and @ControllerAdvice classes are on the classpath.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <!-- version managed by parent BOM (spring-boot.version) -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Starter Validation — Jakarta Bean Validation
+             (Hibernate Validator) for @Valid / @Validated support.
+             CONTROL: RN-10 — input validation prevents injection attacks.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Jakarta Servlet API — provided scope because the runtime
+             container (embedded Tomcat via spring-boot-starter-web)
+             already ships the implementation.  Declared explicitly so
+             that Filter and HttpServletRequest are resolvable at compile
+             time without pulling a second copy into the fat JAR.
+             ============================================================ -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <!-- version managed by parent BOM via spring-boot-dependencies -->
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Autoconfigure — required for @AutoConfiguration
+             and AutoConfigurationImportSelector on the classpath.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Test — unit and slice test support.
+             Scope: test only — not shipped in the published JAR.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
 
 </project>
