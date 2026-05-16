@@ -100,6 +100,31 @@
         </dependency>
 
         <!-- ============================================================
+             Spring Boot WebFlux — provides WebFilter, ServerWebExchange,
+             and the reactive HTTP stack required by RequestLoggingFilter.
+             CONTROL: INI-16
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Security Web + OAuth2 Resource Server — provides
+             ReactiveSecurityContextHolder and JwtAuthenticationToken
+             used by RequestLoggingFilter to extract auth.subject.
+             CONTROL: INI-16
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
              Spring Boot Test — unit and slice test support.
              Scope: test only — not shipped in the published JAR.
              ============================================================ -->
@@ -107,6 +132,18 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!-- ============================================================
+             Reactor Test — StepVerifier and test utilities for Project
+             Reactor pipelines used in RequestLoggingFilterTest.
+             Scope: test only.
+             ============================================================ -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+            <!-- version managed by parent BOM -->
         </dependency>
 
     </dependencies>
