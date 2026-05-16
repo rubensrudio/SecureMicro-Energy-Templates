@@ -1,0 +1,73 @@
+# =============================================================================
+# application-vault.yml — Spring Cloud Vault connection profile
+#
+# This file is activated by adding "vault" to spring.profiles.active or by
+# including it via spring.config.import in the consuming application.
+#
+# SECURITY NOTICE:
+#   No literal secret values appear in this file.
+#   VAULT_ADDR and VAULT_TOKEN are environment variables injected at runtime
+#   by the container orchestrator or the operator.  They must NEVER be
+#   hardcoded here or in any file tracked by version control.
+#
+# CONTROL: RN-01 — zero secrets in env vars, config files or VCS.
+# CONTROL: INI-12 — all secrets resolved via Vault interface at runtime.
+# =============================================================================
+
+spring:
+  cloud:
+    vault:
+      # -----------------------------------------------------------------------
+      # Vault server address.
+      # Resolved from the VAULT_ADDR environment variable.
+      # The fallback value (http://localhost:8200) is for local development
+      # with Vault in dev mode ONLY — never use in staging or production.
+      # CONTROL: RN-01 — value comes from env var, never hardcoded.
+      # -----------------------------------------------------------------------
+      host: ${VAULT_ADDR:http://localhost:8200}  # env var, never hardcoded
+
+      # -----------------------------------------------------------------------
+      # Authentication method.
+      # TOKEN authentication is used for development and CI environments.
+      # For production, switch to APPROLE (documented in vault-paths.md).
+      # -----------------------------------------------------------------------
+      authentication: TOKEN
+
+      # -----------------------------------------------------------------------
+      # Vault token.
+      # Resolved exclusively from the VAULT_TOKEN environment variable.
+      # There is intentionally no fallback default — an absent VAULT_TOKEN
+      # combined with fail-fast=true will abort the startup immediately with
+      # a clear error message rather than silently using an empty token.
+      # CONTROL: RN-01 — value comes from env var, never hardcoded.
+      # -----------------------------------------------------------------------
+      token: ${VAULT_TOKEN}  # env var, never hardcoded
+
+      # -----------------------------------------------------------------------
+      # KV v2 backend configuration.
+      # -----------------------------------------------------------------------
+      kv:
+        enabled: true
+        # Mount path of the KV secrets engine (default: "secret").
+        backend: secret
+        # Default context path appended to the backend mount
+        # (e.g. secret/data/application).
+        default-context: application
+
+      # -----------------------------------------------------------------------
+      # Fail-fast: abort application startup immediately if Vault is
+      # unreachable.  This implements the edge case defined in spec.md:
+      # "WHEN Vault is unavailable at startup THEN the service SHALL fail
+      #  fast with a clear message — never start without resolved secrets."
+      # CONTROL: INI-12 — secrets must be resolved before the context starts.
+      # -----------------------------------------------------------------------
+      fail-fast: true  # fail-fast if Vault is unreachable
+
+  config:
+    # -------------------------------------------------------------------------
+    # Import secrets from Vault via the ConfigData API.
+    # The "vault://" prefix activates VaultConfigDataLoader which reads the
+    # KV paths configured above and injects them as a PropertySource before
+    # any @Value or @ConfigurationProperties bean is initialised.
+    # -------------------------------------------------------------------------
+    import: "vault://"  # import secrets from Vault

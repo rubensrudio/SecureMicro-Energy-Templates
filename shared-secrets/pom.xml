@@ -5,6 +5,13 @@
                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ================================================================
+         shared-secrets — Spring Cloud Vault bootstrap library
+         Inherits version management from the root BOM (Spring Cloud
+         2023.0.5 which ships spring-cloud-vault-config 4.x).
+         CONTROL: RN-01 | INI-11 | INI-12
+         ================================================================ -->
+
     <parent>
         <groupId>com.securemicro</groupId>
         <artifactId>secure-micro-energy-templates</artifactId>
@@ -21,5 +28,87 @@
         Implements CONTROL: RN-01, INI-11, INI-12.
         Phase 1 — implementation in TASK-011 / TASK-012.
     </description>
+
+    <dependencies>
+
+        <!-- ============================================================
+             Spring Cloud Vault Config — integrates HashiCorp Vault as a
+             Spring ConfigData source.  Provides:
+               • VaultConfigDataLoader (ConfigData API, Spring Boot 2.4+)
+               • VaultPropertySource for KV v1/v2 backends
+               • fail-fast behaviour when spring.cloud.vault.fail-fast=true
+             Version managed by Spring Cloud BOM 2023.0.5
+             (resolves to spring-cloud-vault-config 4.x).
+             CONTROL: RN-01 — secrets resolved from Vault, never hardcoded.
+             CONTROL: INI-12 — all secrets resolved via Vault interface.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-vault-config</artifactId>
+            <!-- version managed by spring-cloud-dependencies BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Cloud Starter Vault Config — convenience starter that
+             pulls in spring-cloud-vault-config together with the Spring
+             Cloud Context bootstrap mechanism needed for early-phase
+             secret resolution (before the application context is fully
+             initialised).
+             Version managed by Spring Cloud BOM 2023.0.5.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-vault-config</artifactId>
+            <!-- version managed by spring-cloud-dependencies BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Autoconfigure — required for @AutoConfiguration,
+             @ConditionalOnProperty and condition evaluation.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <!-- version managed by parent BOM (spring-boot.version) -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Starter WebFlux — reactive HTTP stack required
+             for the WebFlux-based auto-wiring used across the template.
+             Declared optional so consuming modules control the transport.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <optional>true</optional>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Test — JUnit 5, AssertJ, Mockito and
+             @SpringBootTest support for integration tests.
+             Scope: test only — not shipped in the published JAR.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             WireMock Standalone — HTTP mock server used to simulate the
+             Vault REST API (/v1/secret/data/...) in integration tests
+             without requiring a live Vault instance.
+             Version managed by root POM property: wiremock.version=3.13.0
+             ============================================================ -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <scope>test</scope>
+            <!-- version managed by root dependencyManagement -->
+        </dependency>
+
+    </dependencies>
 
 </project>
