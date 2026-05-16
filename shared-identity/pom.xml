@@ -5,6 +5,13 @@
                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ================================================================
+         shared-identity — Spring Security OAuth2 Resource Server library.
+         Provides JWT validation against Keycloak JWKS, role-based
+         authorization guards and generic 401/403 error responses.
+         CONTROL: INI-04 | INI-05 | INI-06 | INI-07 | RN-02
+         ================================================================ -->
+
     <parent>
         <groupId>com.securemicro</groupId>
         <artifactId>secure-micro-energy-templates</artifactId>
@@ -21,5 +28,68 @@
         Implements CONTROL: INI-04, INI-05, INI-06, INI-07, RN-02.
         Phase 1 — implementation in TASK-009 / TASK-010.
     </description>
+
+    <dependencies>
+
+        <!-- ============================================================
+             Spring Boot Starter WebFlux — reactive HTTP stack (Netty).
+             Required so SecurityWebFilterChain and ServerHttpSecurity
+             are available on the classpath.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Starter OAuth2 Resource Server — brings in
+             spring-security-oauth2-resource-server and the reactive
+             JWT decoder infrastructure (ReactiveJwtDecoder,
+             ReactiveJwtAuthenticationConverter, etc.).
+             CONTROL: INI-06 | INI-07 | RN-02
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Autoconfigure — needed for @AutoConfiguration
+             in the library's auto-configuration entry point.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- ================================================================
+             TEST SCOPE
+             ================================================================ -->
+
+        <!-- Spring Boot Test — JUnit 5, Mockito, AssertJ, WebTestClient. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Security Test — SecurityMockServerConfigurers,
+             mockJwt() support, etc. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- WireMock Standalone — mocks Keycloak OIDC discovery and
+             JWKS endpoints without a live Keycloak instance.
+             CONTROL: INI-06 verification (issuer resolved from env var). -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
 
 </project>

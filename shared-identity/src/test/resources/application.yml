@@ -1,0 +1,13 @@
+# Test configuration for shared-identity module.
+# KEYCLOAK_ISSUER_URI is set programmatically by IdentitySecurityConfigurationTest
+# via the @SpringBootTest properties attribute after WireMock starts on a dynamic port.
+
+spring:
+  main:
+    web-application-type: reactive
+
+# Disable Spring Boot Actuator auto-configuration in tests — the stub
+# controllers in TestSecurityApplication handle /actuator/* paths directly.
+management:
+  endpoints:
+    enabled-by-default: false
