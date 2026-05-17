@@ -229,6 +229,14 @@ VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root \
 dev-placeholder-not-for-production
 ```
 
+> **ATENÇÃO (ambiente de quickstart):** No ambiente de quickstart, o Keycloak
+> importa o client com o secret literal `${VAULT_MANAGED}` — não o valor acima.
+> Use a **Opção A** para obter o secret real via Keycloak Admin Console.
+> A sincronização automática Vault-Keycloak e a injecao do valor real do Vault
+> como client-secret no Keycloak sao requisitos de producao, nao implementados
+> neste deploy de referencia. Se voce usar o valor retornado acima no Passo 6.2,
+> o Keycloak retornara HTTP 401 (invalid_client).
+
 ### 6.2 Solicitar token via client_credentials
 
 Substitua `<CLIENT_SECRET>` pelo valor obtido no passo 6.1:
