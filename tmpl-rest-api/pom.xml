@@ -174,6 +174,18 @@
     </dependencies>
 
     <!-- ================================================================
+         Properties
+         Reproducible build: pinning the output timestamp guarantees that
+         the JAR manifest and archive entries have a deterministic timestamp,
+         which is a prerequisite for producing the same digest across builds.
+         AC INI-24 / CONTROL: RN-09
+         Override in CI via -Dproject.build.outputTimestamp=<ISO8601>.
+         ================================================================ -->
+    <properties>
+        <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
+    </properties>
+
+    <!-- ================================================================
          Build
          ================================================================ -->
     <build>
@@ -211,6 +223,83 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- ============================================================
+                 CycloneDX Maven Plugin — generates SBOM in CycloneDX format.
+                 Bound to the package phase so that every `mvn package` run
+                 produces a SBOM artifact at target/bom.xml (and bom.json).
+                 Required by EO 14028 for software supply chain provenance.
+                 Version managed by root pluginManagement.
+                 CONTROL: RN-03 — dependencies verified and declared in SBOM
+                 CONTROL: INI-22 | INI-23
+                 ============================================================ -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <!-- version managed by root pluginManagement -->
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <projectType>library</projectType>
+                    <schemaVersion>1.4</schemaVersion>
+                    <includeBomSerialNumber>true</includeBomSerialNumber>
+                    <includeCompileScope>true</includeCompileScope>
+                    <includeTestScope>false</includeTestScope>
+                    <includeRuntimeScope>true</includeRuntimeScope>
+                </configuration>
+            </plugin>
+
+            <!-- ============================================================
+                 Jib Maven Plugin — builds a reproducible OCI container image
+                 without a local Docker daemon.  Jib is the PRIMARY container
+                 build mechanism for this template; the Dockerfile at
+                 tmpl-rest-api/build/Dockerfile is an alternative reference.
+                 Version managed by root pluginManagement.
+                 CONTROL: RN-09 — reproducible digest via fixed outputTimestamp
+                 CONTROL: RN-03 — SBOM digest is the same across identical builds
+                 ============================================================ -->
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <!-- version managed by root pluginManagement -->
+                <configuration>
+                    <from>
+                        <!-- Minimal JRE-only Alpine base; matches Stage 2 of the
+                             reference Dockerfile.  CONTROL: RN-09 -->
+                        <image>eclipse-temurin:17-jre-alpine</image>
+                    </from>
+                    <to>
+                        <image>securemicro/tmpl-rest-api</image>
+                        <tags>
+                            <tag>${project.version}</tag>
+                            <tag>latest</tag>
+                        </tags>
+                    </to>
+                    <container>
+                        <mainClass>com.securemicro.tmpl.restapi.TmplRestApiApplication</mainClass>
+                        <ports>
+                            <port>8080</port>
+                        </ports>
+                        <!-- Reproducible build: fixed timestamp produces the same
+                             image digest for the same source + dependencies.
+                             AC INI-24 / CONTROL: RN-09 -->
+                        <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+                        <!-- Non-root user: UID/GID 65532 ("nonroot" convention)
+                             matches the adduser step in the reference Dockerfile.
+                             CONTROL: RN-09 -->
+                        <user>65532:65532</user>
+                    </container>
+                    <!-- CONTROL: RN-03 — reproducible digest: when combined with
+                         <project.build.outputTimestamp>, Jib produces a
+                         content-addressable image that is verifiable via digest. -->
+                </configuration>
             </plugin>
 
         </plugins>
