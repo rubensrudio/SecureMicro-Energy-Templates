@@ -255,6 +255,7 @@
   - `tmpl-rest-api/src/main/java/com/securemicro/tmpl/restapi/TmplRestApiApplication.java`
 - **Descrição**: Criar `pom.xml` do `tmpl-rest-api` herdando do POM raiz e declarando dependências nos 4 módulos `shared-*`, `spring-boot-starter-webflux`, `spring-boot-starter-actuator`, `springdoc-openapi-starter-webflux-ui:2.x`. Criar `TmplRestApiApplication.java` com `@SpringBootApplication`. O módulo deve compilar e subir (mesmo sem Keycloak/Vault) — a integração com serviços externos é configurável via env vars.
 - **Critério de verificação**: `mvn -pl tmpl-rest-api compile` sem erros. Todos os módulos `shared-*` resolvidos como dependências Maven locais.
+- **Status**: ✅ APROVADA em 2026-05-16 — branch: feature/initial-TASK-013
 
 ---
 
@@ -272,6 +273,7 @@
   - `tmpl-rest-api/config/vault-paths.md`
 - **Descrição**: Criar `application.yml` com todas as configurações do serviço, onde nenhum valor de secret aparece em texto claro. Todos os secrets devem ser referenciados via `spring.config.import=vault://secret/tmpl-rest-api/...`. Configurar: `KEYCLOAK_ISSUER_URI` como env var placeholder, paths do Vault para `keycloak.client-secret`, `service.api-key`. Criar `vault-paths.md` documentando cada path de Vault com o secret correspondente (AC INI-14). Marcar comentários YAML com `# CONTROL: RN-01`. Executar `trufflehog filesystem .` no arquivo — zero findings.
 - **Critério de verificação**: `trufflehog filesystem tmpl-rest-api/config/application.yml` retorna zero findings. `vault-paths.md` contém os 3 paths documentados na seção 4.1 do plano.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-014
 
 ---
 
@@ -289,6 +291,7 @@
   - `tmpl-rest-api/src/main/java/com/securemicro/tmpl/restapi/api/HelloController.java`
 - **Descrição**: Implementar `ResourceController` com: `GET /api/v1/resources` protegido por `ROLE_SERVICE_USER` e `POST /api/v1/resources` protegido por `ROLE_SERVICE_ADMIN` (que injeta `AuditTrailService` e emite audit event na criação). Implementar `HelloController` com `GET /api/v1/hello` protegido por `ROLE_SERVICE_USER`. Todos os endpoints retornam dados placeholder. Marcar com `// CONTROL: INI-04`, `// CONTROL: INI-05`, `// CONTROL: INI-17`.
 - **Critério de verificação**: Testes unitários com `WebTestClient` mockando `SecurityContext`: (a) GET /api/v1/resources com role USER → 200; (b) POST /api/v1/resources com role ADMIN → 201 e audit log emitido; (c) GET /api/v1/hello com role USER → 200. `mvn -pl tmpl-rest-api test` passa.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-015
 
 ---
 
@@ -306,6 +309,7 @@
   - `tmpl-rest-api/src/test/java/com/securemicro/tmpl/restapi/config/ActuatorConfigurationTest.java`
 - **Descrição**: Configurar via `ActuatorConfiguration` e `application.yml` (seção management): (1) expor `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/prometheus` sem autenticação (ACs INI-08, INI-20, INI-18); (2) garantir que os health details não exponham informações sensíveis (versões internas, stack traces). Verificar que `/actuator/prometheus` retorna métricas com prefixos `http_server_requests`, `jvm_`. Marcar com `// CONTROL: RN-05`, `// CONTROL: INI-18`, `// CONTROL: INI-20`.
 - **Critério de verificação**: Teste de integração: `GET /actuator/health` retorna 200 sem token; `GET /actuator/prometheus` retorna 200 sem token com corpo contendo `http_server_requests` e `jvm_memory`.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-016
 
 ---
 
@@ -323,6 +327,7 @@
   - `tmpl-rest-api/src/test/java/com/securemicro/tmpl/restapi/security/SecurityErrorHandlerTest.java`
 - **Descrição**: Implementar `SecurityErrorHandler` que trata os edge cases definidos no spec: (1) token expirado → HTTP 401 com `{"error":"unauthorized"}` sem detalhe sobre motivo (edge case do spec); (2) Keycloak inacessível → HTTP 503 com `{"error":"service_unavailable"}` sem detalhe interno, mas com log interno detalhado; (3) garantir que stack traces nunca apareçam no body de resposta (RN-10). Marcar com `// CONTROL: RN-10`, `// CONTROL: INI-04`.
 - **Critério de verificação**: Testes unitários: (a) Jwt expirado → 401 sem campo `exception` no body; (b) IDP inacessível → 503 com body genérico; (c) nenhum body de erro contém a string `stackTrace` ou `at com.`. `mvn -pl tmpl-rest-api test` passa.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-017
 
 ---
 
