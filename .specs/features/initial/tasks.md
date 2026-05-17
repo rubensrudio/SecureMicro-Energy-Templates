@@ -453,6 +453,7 @@
   - `reference-deploy/docker-compose.yml`
 - **Descrição**: Redigir o guia de quickstart (AC INI-31, INI-34) com pré-requisitos, sequência exata de comandos e resultados esperados: (1) verificar Docker instalado (edge case do spec — detectar ausência e exibir aviso); (2) `docker compose pull` para pré-download das imagens; (3) `docker compose up -d`; (4) obter token JWT do Keycloak via `curl`; (5) chamar endpoint autenticado; (6) ver log JSON no stdout; (7) acessar `/actuator/prometheus`; (8) acessar Jaeger UI em `localhost:16686`. Cada passo com comando exato e output esperado. Documentar explicitamente que Vault dev mode NÃO é para produção (AC INI-33) com referência às seções de produção do PRD (AC INI-35).
 - **Critério de verificação**: Sequência de comandos do guia executada em máquina limpa (apenas Docker instalado) completa em menos de 30 minutos com imagens pré-baixadas. Cada curl retorna o status HTTP esperado documentado no guia.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-024 (2ª rodada QA wave após fix da inconsistência Opção B Vault↔Keycloak)
 
 ---
 
