@@ -435,6 +435,7 @@
   - `reference-deploy/docker-compose.yml`
 - **Descrição**: Criar `realm-export.json` do realm de referência do Keycloak conforme seção 4.2 do plano: `otpPolicyType: totp`, `browserFlow: browser-with-otp` (MFA obrigatório, AC INI-09), client `tmpl-rest-api` confidencial com `publicClient: false`, roles `ROLE_SERVICE_USER` e `ROLE_SERVICE_ADMIN`. O client-secret deve ser referenciado como instrução `${VAULT_MANAGED}` — não deve conter valor real (RN-01). Atualizar `docker-compose.yml` para importar o realm automaticamente via `--import-realm` no Keycloak. Marcar com `// CONTROL: INI-09`, `// CONTROL: RN-02`.
 - **Critério de verificação**: `docker compose up -d` → Keycloak sobe com o realm importado; `GET /realms/tmpl-rest-api/.well-known/openid-configuration` retorna 200. Arquivo `realm-export.json` não contém nenhum valor de secret em texto claro (`trufflehog filesystem reference-deploy/keycloak/` → zero findings).
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-023 (2ª rodada QA após fixes de bind-mount e _comment/_control)
 
 ---
 
