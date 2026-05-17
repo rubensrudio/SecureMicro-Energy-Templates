@@ -188,7 +188,9 @@ class AuthenticationIntegrationTest {
         webTestClient.get()
                 .uri("/api/v1/hello")
                 .exchange()
-                .expectStatus().isUnauthorized();
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.error").isEqualTo("unauthorized");
     }
 
     /**
@@ -204,7 +206,9 @@ class AuthenticationIntegrationTest {
                 .uri("/api/v1/hello")
                 .header("Authorization", "Bearer " + token)
                 .exchange()
-                .expectStatus().isForbidden();
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.error").isEqualTo("forbidden");
     }
 
     /**
