@@ -32,6 +32,11 @@
 set -eu
 
 # ---------------------------------------------------------------------------
+# Preflight — verify vault binary is available in PATH
+# ---------------------------------------------------------------------------
+command -v vault >/dev/null 2>&1 || { echo "ERROR: vault CLI not found in PATH. Install from https://developer.hashicorp.com/vault/downloads" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
 # Configuration
 #
 # VAULT_ADDR and VAULT_TOKEN are expected to be set in the calling environment.
@@ -132,26 +137,16 @@ echo "  [OK] secret/tmpl-rest-api/db written."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Verification — confirm all three paths are readable
+# Verification — confirm all three paths are readable (silent — no secret values printed)
 # ---------------------------------------------------------------------------
 echo "================================================================"
-echo "  Verification — reading back seeded paths:"
+echo "  Verification — confirming seeded paths are readable:"
 echo "================================================================"
 echo ""
 
-echo "  secret/tmpl-rest-api/keycloak:"
-vault kv get -field=client-secret secret/tmpl-rest-api/keycloak \
-  | sed 's/^/    client-secret = /'
-echo ""
-
-echo "  secret/tmpl-rest-api/service:"
-vault kv get -field=api-key secret/tmpl-rest-api/service \
-  | sed 's/^/    api-key = /'
-echo ""
-
-echo "  secret/tmpl-rest-api/db:"
-vault kv get -field=password secret/tmpl-rest-api/db \
-  | sed 's/^/    password = /'
+vault kv get -field=client-secret secret/tmpl-rest-api/keycloak >/dev/null && echo "OK: secret/tmpl-rest-api/keycloak seeded"
+vault kv get -field=api-key secret/tmpl-rest-api/service >/dev/null && echo "OK: secret/tmpl-rest-api/service seeded"
+vault kv get -field=password secret/tmpl-rest-api/db >/dev/null && echo "OK: secret/tmpl-rest-api/db seeded"
 echo ""
 
 echo "================================================================"
