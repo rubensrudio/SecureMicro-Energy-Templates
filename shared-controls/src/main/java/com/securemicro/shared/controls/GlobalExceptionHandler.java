@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
@@ -44,6 +45,28 @@ public class GlobalExceptionHandler {
     private static final String INTERNAL_ERROR_CODE = "internal_error";
 
     // -------------------------------------------------------------------------
+
+    /**
+     * Re-throws {@link AccessDeniedException} so that Spring Security's
+     * {@code ServerAccessDeniedHandler} (configured in
+     * {@code IdentitySecurityConfiguration}) can handle it and return HTTP 403
+     * with the generic body {@code {"error":"forbidden"}}.
+     *
+     * <p>Without this re-throw the catch-all {@link RuntimeException} handler
+     * below would intercept the exception first and return HTTP 500, bypassing
+     * the security handler and violating CONTROL: INI-05.
+     *
+     * <p>CONTROL: INI-05 — 403 must be returned for insufficient roles, not 500.
+     *
+     * @param ex the access denied exception thrown by {@code @PreAuthorize}
+     * @throws AccessDeniedException always — delegates to Spring Security
+     */
+    // CONTROL: INI-05
+    @ExceptionHandler(AccessDeniedException.class)
+    public void handleAccessDeniedException(AccessDeniedException ex) throws AccessDeniedException {
+        // Re-throw so Spring Security's ServerAccessDeniedHandler returns 403.
+        throw ex;
+    }
 
     /**
      * Catches any {@link RuntimeException} not handled by a more specific
