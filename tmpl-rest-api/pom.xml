@@ -179,6 +179,18 @@
     <build>
         <plugins>
 
+            <!-- Maven Surefire — explicit argLine to enable Byte Buddy
+                 instrumentation on Java 25+ (Byte Buddy officially supports
+                 up to Java 23; experimental flag unlocks newer runtimes).
+                 Required for @MockBean + @WebFluxTest slice tests. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                </configuration>
+            </plugin>
+
             <!-- Spring Boot Maven Plugin — repackages the JAR into an
                  executable fat-JAR with embedded Netty server.
                  Plugin version managed by root pluginManagement. -->
