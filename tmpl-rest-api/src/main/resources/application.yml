@@ -1,0 +1,88 @@
+# =============================================================================
+# application.yml — tmpl-rest-api
+#
+# Main configuration file for the SecureMicro Template REST API.
+# This file contains ONLY non-sensitive configuration values.
+# ALL secrets (database passwords, Vault tokens, Keycloak client-secret, etc.)
+# are resolved at runtime via HashiCorp Vault through the shared-secrets module.
+# CONTROL: RN-01 — zero secrets in versioned config files.
+#
+# The management section is the focus of TASK-016:
+#   CONTROL: RN-05  — health/readiness/liveness probes present and functional
+#   CONTROL: INI-18 — Micrometer metrics at /actuator/prometheus
+#   CONTROL: INI-20 — liveness and readiness probes
+# =============================================================================
+
+spring:
+  application:
+    name: tmpl-rest-api
+
+  # ---------------------------------------------------------------------------
+  # Vault bootstrap — disabled by default for local development and CI tests.
+  # Set spring.cloud.vault.enabled=true and supply VAULT_ADDR + VAULT_TOKEN
+  # (via environment variables — never in this file) for production deployments.
+  # CONTROL: RN-01 | INI-11 | INI-12
+  # ---------------------------------------------------------------------------
+  cloud:
+    vault:
+      enabled: ${VAULT_ENABLED:false}
+
+# =============================================================================
+# Management — Actuator endpoints configuration
+# CONTROL: RN-05  — health/readiness/liveness probes present and functional
+# CONTROL: INI-18 — Micrometer metrics at /actuator/prometheus
+# CONTROL: INI-20 — liveness and readiness probes
+# =============================================================================
+management:
+  endpoints:
+    web:
+      # Expose only the endpoints needed for operational observability.
+      # Adding more endpoints here increases the attack surface — keep this list
+      # minimal and document each addition in control-mapping.md.
+      # CONTROL: RN-05 | INI-18 | INI-20
+      exposure:
+        include: health,prometheus  # CONTROL: RN-05 | INI-18
+
+  endpoint:
+    health:
+      # NEVER expose health details to unauthenticated clients.
+      # show-details=never means the response contains only {"status":"UP"}
+      # or {"status":"DOWN"} — no library versions, no datasource URLs,
+      # no stack traces, no internal metadata.
+      # CONTROL: RN-05 — probes present; RN-10 — no sensitive detail exposed.
+      show-details: never  # CONTROL: RN-05 | RN-10
+
+      # Enable liveness and readiness probes as independent health groups.
+      # These are the standard Kubernetes probe paths Spring Boot exposes when
+      # probes are enabled. CONTROL: INI-20
+      probes:
+        enabled: true  # CONTROL: INI-20
+
+    # Prometheus endpoint enabled — required by INI-18.
+    # Authentication is handled at the security layer (IdentitySecurityConfiguration
+    # whitelists /actuator/prometheus via permitAll()).
+    # CONTROL: INI-18
+    prometheus:
+      enabled: true  # CONTROL: INI-18
+
+  # ---------------------------------------------------------------------------
+  # Health groups — maps liveness and readiness to their probe paths.
+  # /actuator/health/liveness  → managed by Spring Boot LivenessState
+  # /actuator/health/readiness → managed by Spring Boot ReadinessState
+  # CONTROL: INI-20
+  # ---------------------------------------------------------------------------
+  health:
+    livenessstate:
+      enabled: true   # CONTROL: INI-20
+    readinessstate:
+      enabled: true   # CONTROL: INI-20
+
+  # ---------------------------------------------------------------------------
+  # Metrics — Micrometer configuration.
+  # Tags added here appear on every metric exported to Prometheus and allow
+  # dashboards to filter by service name and version.
+  # CONTROL: INI-18
+  # ---------------------------------------------------------------------------
+  metrics:
+    tags:
+      application: ${spring.application.name}  # CONTROL: INI-18
