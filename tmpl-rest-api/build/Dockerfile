@@ -53,7 +53,7 @@ COPY tmpl-rest-api/pom.xml          ./tmpl-rest-api/pom.xml
 
 # Pre-fetch dependencies (offline-ready layer).
 # -B = batch mode (no interactive prompts), -q = quiet (reduce noise).
-RUN mvn -B -q dependency:go-offline -DexcludeArtifactIds="" 2>/dev/null || true
+RUN mvn -B dependency:go-offline -DexcludeArtifactIds=""
 
 # Copy all source trees (invalidates layer only when sources change).
 COPY shared-controls/src        ./shared-controls/src
