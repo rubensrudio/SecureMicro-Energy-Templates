@@ -381,7 +381,7 @@
   - `docs/threat-models/tmpl-rest-api-threat-model.md`
 - **Descrição**: Redigir o threat model STRIDE completo do `tmpl-rest-api` contendo obrigatoriamente (AC INI-29): (1) trust boundaries (cliente externo, serviço, Keycloak, Vault, serviços downstream); (2) atores (engenheiro, revisor AppSec, atacante externo); (3) fluxo de dados com diagrama textual; (4) ameaças STRIDE analisadas para cada componente; (5) ameaças explicitamente fora do escopo. O arquivo em `docs/threat-models/` é o espelho do que está no template (conforme arquitetura do plano). O CI deve verificar que este arquivo existe e não está vazio (AC INI-28).
 - **Critério de verificação**: Ambos os arquivos existem, têm mais de 200 linhas e contêm as seções obrigatórias: "Trust Boundaries", "STRIDE", "Out of Scope". Gate CI do TASK-025 valida isso automaticamente.
-- **Status**: ⛔ BLOQUEADA_NEEDS_HUMAN — QA REPROVADO 2x (limite atingido). 1ª reprovação: TB-02 sem R/E (corrigido). 2ª reprovação: TB-04 incompleto (faltam S/D/E), TB-05 incompleto (faltam T/R), SQL injection e SSRF não abordados/justificados. Feedback completo disponível nos logs do pipeline.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-020 (3ª rodada manual após BLOQUEADA_NEEDS_HUMAN; fixes aplicados pelo orquestrador)
 
 ---
 
