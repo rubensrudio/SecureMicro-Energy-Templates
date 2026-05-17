@@ -417,6 +417,7 @@
   - `reference-deploy/vault/vault-dev-init.sh`
 - **Descrição**: Criar `docker-compose.yml` que sobe os 4 serviços com um único `docker compose up -d` (AC INI-32): `keycloak:24.x` com healthcheck, `vault:1.17.x` em modo dev com healthcheck, `tmpl-rest-api` aguardando Keycloak e Vault via `depends_on: condition: service_healthy`, `jaegertracing/all-in-one:1.57`. Criar `vault-dev-init.sh` que faz seed dos paths KV v2 (`secret/tmpl-rest-api/keycloak`, `secret/tmpl-rest-api/service`, `secret/tmpl-rest-api/db`) com valores de placeholder para dev (AC INI-33). Documentar explicitamente no compose e no script que modo dev NÃO é para produção. Marcar com `# CONTROL: RN-01`.
 - **Critério de verificação**: `docker compose up -d` seguido de `docker compose ps` mostra todos os 4 serviços em estado `healthy` (ou running) sem intervenção manual. `vault-dev-init.sh` executa sem erros e paths ficam acessíveis via `vault kv get`.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-022
 
 ---
 
@@ -468,6 +469,7 @@
   - `.github/workflows/sbom.yml`
 - **Descrição**: Criar `ci.yml` com steps: (1) `mvn clean verify` — build + testes; (2) `trufflehog filesystem .` — varredura de secrets, falha se encontrar padrão (AC INI-15, RN-01); (3) `trivy fs --exit-code 1 --severity CRITICAL,HIGH .` — CVE scan, falha em CVE crítica ou alta (AC INI-25, RN-08); (4) script que verifica que `threat-model.md` existe e não está vazio (AC INI-28, RN-06); (5) script de rastreabilidade bidirecional: para cada `CONTROL: <ID>` no `control-mapping.md`, verifica que existe ao menos uma ocorrência de `// CONTROL: <ID>` no código (INI-30, plano risco R-04). Criar `sbom.yml` que gera o SBOM CycloneDX e o associa como artifact do workflow (AC INI-22, INI-26).
 - **Critério de verificação**: Push em branch dispara o workflow; build falha intencionalmente ao: (a) introduzir secret em texto claro em qualquer arquivo; (b) `threat-model.md` ser esvaziado; (c) dependência com CVE crítica conhecida ser adicionada. Build passa no estado limpo do repositório.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-025
 
 ---
 
