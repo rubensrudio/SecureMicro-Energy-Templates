@@ -363,6 +363,7 @@
   - `tmpl-rest-api/pom.xml`
 - **Descrição**: Configurar build de container reproduzível. Adicionar `cyclonedx-maven-plugin:2.x` e `jib-maven-plugin` no `pom.xml` do `tmpl-rest-api`. Criar `Dockerfile` multi-stage como referência alternativa ao Jib, usando `eclipse-temurin:17-jre-alpine` como base, usuário não-root, read-only filesystem. Configurar `jib` com `project.build.outputTimestamp` fixo para garantir reprodutibilidade de digest (AC INI-24). Adicionar plugin `cyclonedx-maven-plugin` para geração de SBOM em `target/bom.xml` (AC INI-22). Marcar com `# CONTROL: RN-03`, `# CONTROL: RN-09`.
 - **Critério de verificação**: `mvn -pl tmpl-rest-api package cyclonedx:makeAggregateBom` gera `target/bom.xml` em formato CycloneDX. Dois builds consecutivos com mesmo código produzem imagem com mesmo digest (verificável com `docker inspect --format='{{.Id}}'`).
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-019
 
 ---
 
@@ -380,6 +381,7 @@
   - `docs/threat-models/tmpl-rest-api-threat-model.md`
 - **Descrição**: Redigir o threat model STRIDE completo do `tmpl-rest-api` contendo obrigatoriamente (AC INI-29): (1) trust boundaries (cliente externo, serviço, Keycloak, Vault, serviços downstream); (2) atores (engenheiro, revisor AppSec, atacante externo); (3) fluxo de dados com diagrama textual; (4) ameaças STRIDE analisadas para cada componente; (5) ameaças explicitamente fora do escopo. O arquivo em `docs/threat-models/` é o espelho do que está no template (conforme arquitetura do plano). O CI deve verificar que este arquivo existe e não está vazio (AC INI-28).
 - **Critério de verificação**: Ambos os arquivos existem, têm mais de 200 linhas e contêm as seções obrigatórias: "Trust Boundaries", "STRIDE", "Out of Scope". Gate CI do TASK-025 valida isso automaticamente.
+- **Status**: ⛔ BLOQUEADA_NEEDS_HUMAN — QA REPROVADO 2x (limite atingido). 1ª reprovação: TB-02 sem R/E (corrigido). 2ª reprovação: TB-04 incompleto (faltam S/D/E), TB-05 incompleto (faltam T/R), SQL injection e SSRF não abordados/justificados. Feedback completo disponível nos logs do pipeline.
 
 ---
 
@@ -397,6 +399,7 @@
   - `docs/control-mappings/tmpl-rest-api-controls.md`
 - **Descrição**: Redigir o mapeamento completo de controles para fontes federais (AC INI-27): cada controle implementado (RN-01 a RN-10, INI-04 a INI-21) mapeado à cláusula específica de EO 14028, NIST SP 800-53 rev5 ou CISA Guidance. Incluir referência ao arquivo e marcação `// CONTROL:` correspondente no código. O arquivo em `docs/control-mappings/` é o espelho do que está no template. A rastreabilidade bidirecional (INI-30) exige que cada ID listado aqui tenha um `// CONTROL: <ID>` no código implementado nas tasks anteriores.
 - **Critério de verificação**: Arquivo contém tabela com colunas `Control ID`, `Descrição`, `Fonte Federal`, `Cláusula`, `Arquivo de Código`. Mínimo 15 controles mapeados. Gate CI do TASK-025 verifica presença de cada `CONTROL: <ID>` no código.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-021
 
 ---
 
@@ -550,6 +553,7 @@
   - `sme-cli/README.md`
 - **Descrição**: Criar `README.md` raiz do repositório com: (1) descrição do projeto SecureMicro-Energy-Templates e propósito; (2) tabela de status de todos os componentes declarando explicitamente "Phase 1 — implementado" ou "Phase 2 — planejado" (AC INI-02); (3) link para o guia de quickstart; (4) pré-requisitos (Docker, Java 17, Maven, Python 3.11); (5) referências às fontes federais (EO 14028, NIST SP 800-53, CISA). Criar `sme-cli/README.md` com instruções de instalação e uso do CLI.
 - **Critério de verificação**: `README.md` contém tabela com todos os componentes listados na estrutura da seção 3.1 do plano, cada um com status explícito. Contém link funcional para `docs/quickstart/tmpl-rest-api-quickstart.md`.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-030
 
 ---
 
