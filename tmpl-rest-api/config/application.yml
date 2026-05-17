@@ -68,6 +68,9 @@ spring:
       # fail-fast=true: abort startup if Vault is unreachable.
       # CONTROL: RN-01 — never start with unresolved secrets.
       fail-fast: true
+      # Network timeouts — prevent indefinite hangs on unreachable Vault.
+      connection-timeout: 5000
+      read-timeout: 15000
       kv:
         enabled: true
         backend: secret
