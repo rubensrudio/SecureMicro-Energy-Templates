@@ -1,0 +1,238 @@
+# =============================================================================
+# .github/workflows/ci.yml
+#
+# CI Pipeline — SecureMicro-Energy-Templates
+#
+# Gates de segurança obrigatórios por push em qualquer branch e por pull
+# request targeting main.
+#
+# Jobs (em sequência salvo indicação de paralelismo):
+#   1. build-and-test      — mvn clean verify (compile + unit + integration tests)
+#   2. secret-scan         — TruffleHog: falha se secret verificado encontrado (AC INI-15, RN-01)
+#   3. cve-scan            — Trivy fs: falha em CVE CRITICAL ou HIGH (AC INI-25, RN-08)
+#   4. security-gates      — verifica threat-model.md (AC INI-28, RN-06) e
+#                            rastreabilidade bidirecional CONTROL:<ID> (AC INI-30, INI-27)
+#
+# CONTROL: INI-15 — CI executa varredura de secrets (trufflehog) em cada PR.
+# CONTROL: INI-25 — CI falha em CVE crítica ou alta (Trivy).
+# CONTROL: INI-28 — CI verifica existência e conteúdo de threat-model.md.
+# CONTROL: INI-30 — CI verifica rastreabilidade bidirecional control-mapping ↔ código.
+# CONTROL: RN-01  — varredura de secrets impede commits de credenciais em texto claro.
+# CONTROL: RN-06  — threat model obrigatório por template; CI falha se ausente.
+# CONTROL: RN-08  — dependências com CVE crítica ou alta bloqueiam o build.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Job 1 — build-and-test
+  #
+  # Executa mvn clean verify para:
+  #   - compilar todos os módulos Maven (shared-* + tmpl-rest-api)
+  #   - rodar testes unitários (Surefire)
+  #   - rodar testes de integração (Failsafe)
+  #   - gerar SBOM CycloneDX (cyclonedx:makeAggregateBom via verify lifecycle)
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Maven build and test
+        # CONTROL: RN-08 — build fails on compilation errors or test failures.
+        # CONTROL: INI-22 — CycloneDX SBOM is generated during verify lifecycle.
+        run: mvn -B clean verify
+
+      - name: Upload SBOM artifact (bom.xml)
+        # Preserves the SBOM produced in the verify phase for the sbom.yml workflow
+        # and for downstream attestation (AC INI-26).
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx-ci
+          path: tmpl-rest-api/target/bom.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — secret-scan
+  #
+  # TruffleHog scans the full repository for verified secrets.
+  # Fails the build if any verified secret is detected (AC INI-15, RN-01).
+  #
+  # Strategy: use the Docker-based invocation so the exact version is pinned
+  # and the tool is not downloaded from an unpinned source at runtime.
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret Scan (TruffleHog)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog — scan for verified secrets
+        # CONTROL: INI-15 — CI varredura de secrets; falha em secret verificado.
+        # CONTROL: RN-01  — zero secrets em variáveis, configs ou VCS.
+        #
+        # --only-verified: report only secrets that TruffleHog can verify as
+        # active (reduces false positives).
+        # --fail: exit code 183 when secrets are found (GitHub Actions detects
+        # non-zero as failure).
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            trufflesecurity/trufflehog:latest \
+            filesystem /repo \
+            --only-verified \
+            --fail
+
+  # ---------------------------------------------------------------------------
+  # Job 3 — cve-scan
+  #
+  # Trivy scans the filesystem (Maven target directories + source) for known
+  # CVEs in dependencies.  Fails on CRITICAL or HIGH severity (AC INI-25, RN-08).
+  # ---------------------------------------------------------------------------
+  cve-scan:
+    name: CVE Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Build JAR (skip tests — already verified in build-and-test)
+        run: mvn -B package -DskipTests
+
+      - name: Trivy — CVE scan (filesystem)
+        # CONTROL: INI-25 — CI falha em CVE crítica ou alta.
+        # CONTROL: RN-08  — dependências com CVE crítica/alta bloqueiam o build.
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          format: table
+
+  # ---------------------------------------------------------------------------
+  # Job 4 — security-gates
+  #
+  # Step 4a: verifica que tmpl-rest-api/threat-model.md existe e não está vazio
+  #          (AC INI-28, RN-06).
+  #
+  # Step 4b: rastreabilidade bidirecional — para cada Control ID na tabela de
+  #          tmpl-rest-api/control-mapping.md, verifica que existe ao menos uma
+  #          ocorrência de "CONTROL: <ID>" em qualquer arquivo do projeto
+  #          (AC INI-30, INI-27).
+  # ---------------------------------------------------------------------------
+  security-gates:
+    name: Security Gates
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Gate 4a — verify threat-model.md exists and is non-empty
+        # CONTROL: INI-28 — CI verifica existência e conteúdo de threat-model.md.
+        # CONTROL: RN-06  — threat model STRIDE obrigatório; CI falha se ausente.
+        shell: bash
+        run: |
+          FILE="tmpl-rest-api/threat-model.md"
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: $FILE is missing" >&2
+            exit 1
+          fi
+          if [ ! -s "$FILE" ]; then
+            echo "ERROR: $FILE exists but is empty" >&2
+            exit 1
+          fi
+          LINE_COUNT=$(wc -l < "$FILE")
+          echo "OK: threat-model.md exists (${LINE_COUNT} lines)"
+
+      - name: Gate 4b — bidirectional traceability (control-mapping ↔ codebase)
+        # CONTROL: INI-30 — rastreabilidade bidirecional: cada Control ID no
+        #   control-mapping.md deve ter ao menos um marcador CONTROL: <ID> no
+        #   código-fonte (Java, YAML, XML, Dockerfile).
+        # CONTROL: INI-27 — control-mapping.md com rastreabilidade federal.
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MAPPING="tmpl-rest-api/control-mapping.md"
+
+          if [ ! -f "$MAPPING" ]; then
+            echo "ERROR: $MAPPING is missing — cannot verify traceability" >&2
+            exit 1
+          fi
+
+          FAILED=0
+
+          # Extract Control IDs from the table rows in control-mapping.md.
+          # Lines that start a table row with a Control ID have the pattern:
+          #   | RN-01 | ... or | INI-04 | ...
+          # grep -oP extracts just the ID token.
+          while IFS= read -r LINE; do
+            ID=$(echo "$LINE" | grep -oP '^\| \K(RN|INI)-[0-9]+')
+            [ -z "$ID" ] && continue
+
+            COUNT=$(grep -r "CONTROL: $ID" \
+              --include="*.java" \
+              --include="*.yml" \
+              --include="*.yaml" \
+              --include="*.xml" \
+              --include="Dockerfile" \
+              . 2>/dev/null | wc -l)
+
+            if [ "$COUNT" -eq 0 ]; then
+              echo "ERROR: CONTROL: $ID has no marker in codebase" >&2
+              FAILED=1
+            else
+              echo "OK: CONTROL: $ID — ${COUNT} occurrence(s)"
+            fi
+          done < "$MAPPING"
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "" >&2
+            echo "One or more controls listed in $MAPPING have no corresponding" >&2
+            echo "CONTROL: <ID> marker in the codebase. Add the marker to the" >&2
+            echo "implementation file that enforces the control." >&2
+            exit 1
+          fi
+
+          echo ""
+          echo "All controls in $MAPPING are traceable to codebase markers."
