@@ -6,90 +6,80 @@ package com.securemicro.shared.observability;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.PropertySource;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.core.io.ClassPathResource;
+
+import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests for {@link OtelConfiguration} — verifies:
  * <ol>
- *   <li>The Spring {@link ApplicationContext} loads successfully even when no
- *       OTLP collector is reachable (graceful degradation — AC INI-21).</li>
- *   <li>A {@link MeterRegistry} bean is present in the context, confirming the
- *       observability stack is wired correctly.</li>
+ *   <li>The Spring {@link org.springframework.context.ApplicationContext} loads
+ *       successfully even when no OTLP collector is reachable
+ *       (graceful degradation — AC INI-21).</li>
  *   <li>The {@code OTEL_EXPORTER_OTLP_ENDPOINT} value is read from the
- *       environment / properties and falls back to {@code localhost:4318}
- *       when the variable is not set (AC INI-19).</li>
+ *       environment / properties and injected via {@code @Value} (AC INI-19).</li>
+ *   <li>The {@code @Value} fallback resolves to {@code http://localhost:4318}
+ *       when the property is absent from the environment (AC INI-19).</li>
+ *   <li>{@code application-observability.yml} declares
+ *       {@code otel.propagators=tracecontext,baggage}, confirming W3C
+ *       TraceContext propagation is configured (AC INI-19).</li>
  * </ol>
  *
- * <h2>Graceful-degradation strategy</h2>
- * <p>The test deliberately does NOT start a Jaeger or OTel collector instance.
- * The {@code opentelemetry-spring-boot-starter} (2.14.0) uses an asynchronous,
- * non-blocking OTLP exporter that queues spans in the background — it does not
- * open a synchronous connection at startup. Therefore, the absence of a reachable
- * endpoint must not prevent the {@code ApplicationContext} from starting.
+ * <h2>Why {@link ApplicationContextRunner} instead of {@code @SpringBootTest}</h2>
+ * <p>{@link ApplicationContextRunner} builds a minimal Spring
+ * {@link org.springframework.context.ApplicationContext} without requiring
+ * {@code @SpringBootApplication} on the classpath. It avoids:
+ * <ul>
+ *   <li>The {@code NoClassDefFoundError} for {@code EventLoggerProvider} caused
+ *       by the {@code opentelemetry-api-incubator 1.48.0-alpha} vs
+ *       {@code opentelemetry-api 1.38.0} conflict when full auto-configuration
+ *       is activated.</li>
+ *   <li>The {@code IllegalStateException} that occurs when {@code @SpringBootTest}
+ *       is used on nested classes without a {@code @SpringBootConfiguration}
+ *       ancestor in scope.</li>
+ * </ul>
+ * <p>Each test runs against the exact same {@link OtelConfiguration} bean as in
+ * production; only the surrounding auto-configuration is omitted.
  *
- * <h2>Test context design</h2>
- * <p>This test loads a minimal Spring context containing only
- * {@link OtelConfiguration} and the beans it depends on — a
- * {@link MeterRegistry} and the {@code OTEL_EXPORTER_OTLP_ENDPOINT} property.
- * This avoids the OTel SDK auto-configuration (which has transitive dependency
- * conflicts in the test environment) while still validating the exact behaviour
- * specified by TASK-008: {@link OtelConfiguration} loads, the endpoint is
- * injected via {@code @Value}, and the context starts normally without a
- * reachable OTLP collector.
+ * <h2>Test for W3C propagators</h2>
+ * <p>The propagator test reads {@code application-observability.yml} directly via
+ * {@link YamlPropertiesFactoryBean} (the same YAML loader Spring Boot uses
+ * internally). This verifies the property file's content without relying on
+ * {@code spring.config.import}, which {@link ApplicationContextRunner} does not
+ * process in the same way as full Spring Boot auto-configuration.
  *
  * <p>CONTROL: INI-19 | INI-21
  */
-@SpringBootTest(
-        classes = OtelConfigurationTest.MinimalTestConfig.class,
-        webEnvironment = SpringBootTest.WebEnvironment.NONE
-)
-@TestPropertySource(properties = {
-        // Point the OTLP exporter at a port that is guaranteed to be closed,
-        // simulating an unreachable collector.  The context must still start. // CONTROL: INI-21
-        "OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:19999"
-})
 class OtelConfigurationTest {
 
+    // =========================================================================
+    //  Minimal Spring context: OtelConfiguration + SimpleMeterRegistry only.
+    //  No OTel SDK auto-configuration is activated — avoids incubator conflict.
+    // =========================================================================
+
     /**
-     * Minimal Spring context for TASK-008 validation.
-     *
-     * <p>Contains only:
-     * <ul>
-     *   <li>{@link OtelConfiguration} — the class under test.</li>
-     *   <li>A {@link SimpleMeterRegistry} — satisfies {@link MeterRegistry}
-     *       injection points without loading the full Micrometer auto-configuration
-     *       stack.</li>
-     * </ul>
-     *
-     * <p>This design isolates the test from OTel SDK version conflicts and from
-     * the duplicate-bean issue in {@link SharedObservabilityAutoConfiguration},
-     * while still verifying the three acceptance criteria of TASK-008.
+     * Provides a {@link MeterRegistry} to satisfy any Micrometer injection point
+     * without pulling in Prometheus or Actuator auto-configuration.
      */
     @Configuration
     static class MinimalTestConfig {
 
-        /**
-         * Minimal {@link MeterRegistry} required by beans that depend on
-         * Micrometer.  Using {@link SimpleMeterRegistry} avoids pulling in the
-         * full Prometheus / Actuator auto-configuration stack.
-         */
         @Bean
         MeterRegistry meterRegistry() {
             return new SimpleMeterRegistry();
         }
 
         /**
-         * The class under test — imported explicitly so the test context is
-         * fully deterministic and not subject to classpath scanning surprises.
+         * The class under test — imported explicitly so the context is fully
+         * deterministic and not subject to classpath-scanning surprises.
          */
         @Bean
         OtelConfiguration otelConfiguration() {
@@ -97,101 +87,238 @@ class OtelConfigurationTest {
         }
     }
 
-    @Autowired
-    private ApplicationContext context;
+    // =========================================================================
+    //  Nested tests: explicit (unreachable) OTLP endpoint set
+    // =========================================================================
 
-    @Autowired
-    private OtelConfiguration otelConfiguration;
+    /**
+     * Tests executed with {@code OTEL_EXPORTER_OTLP_ENDPOINT} explicitly set
+     * to a closed port ({@code 19999}) to simulate an unreachable collector.
+     * Verifies graceful degradation (AC INI-21) and correct {@code @Value}
+     * injection (AC INI-19).
+     */
+    @Nested
+    @DisplayName("With OTEL_EXPORTER_OTLP_ENDPOINT set to a closed port")
+    class WithCustomEndpoint {
 
-    @Autowired
-    private MeterRegistry meterRegistry;
+        /**
+         * Runner with {@code OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:19999}
+         * simulating a configured (but unreachable) OTLP collector.
+         */
+        private final ApplicationContextRunner runner = new ApplicationContextRunner()
+                .withUserConfiguration(MinimalTestConfig.class)
+                .withPropertyValues(
+                        // Simulates a configured (but unreachable) OTLP collector.
+                        // CONTROL: INI-21
+                        "OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:19999"
+                );
 
-    // ------------------------------------------------------------------ //
-    //  AC INI-21 — Graceful degradation when no OTLP collector available  //
-    // ------------------------------------------------------------------ //
+        // ------------------------------------------------------------------ //
+        //  AC INI-21 — Context loads even when collector is unreachable        //
+        // ------------------------------------------------------------------ //
 
-    @Test
-    @DisplayName("AC INI-21: ApplicationContext loads without exception when OTLP endpoint is unreachable")
-    void contextLoads_withoutReachableOtlpEndpoint() {
-        // If the context did not load, the @SpringBootTest itself would have
-        // failed before reaching this assertion.  The assertion serves as an
-        // explicit, readable statement of the acceptance criterion.
-        //
-        // OTLP endpoint http://localhost:19999 is deliberately unreachable.
-        // The opentelemetry-spring-boot-starter (2.14.0) uses an asynchronous,
-        // non-blocking exporter — it does NOT throw an exception or block the
-        // ApplicationContext from starting when the endpoint is unavailable.
-        //
-        // CONTROL: INI-21
-        assertThat(context)
-                .as("ApplicationContext must be available even when OTLP endpoint is unreachable (AC INI-21)")
-                .isNotNull();
+        @Test
+        @DisplayName("AC INI-21: context starts without exception when OTLP endpoint is unreachable")
+        void contextLoads_withoutReachableOtlpEndpoint() {
+            // OtelConfiguration must not open a synchronous connection at startup;
+            // the OTel SDK exporter is asynchronous.  The @PostConstruct log call
+            // must also not throw when the endpoint is unreachable.
+            //
+            // CONTROL: INI-21
+            runner.run(ctx -> assertThat(ctx)
+                    .as("ApplicationContext must start normally even when the OTLP "
+                            + "endpoint is unreachable (AC INI-21)")
+                    .hasNotFailed());
+        }
+
+        @Test
+        @DisplayName("OtelConfiguration bean is wired into the context")
+        void otelConfigurationBean_isPresentInContext() {
+            runner.run(ctx -> assertThat(ctx)
+                    .hasSingleBean(OtelConfiguration.class));
+        }
+
+        // ------------------------------------------------------------------ //
+        //  AC INI-19 — @Value injected from explicit property                  //
+        // ------------------------------------------------------------------ //
+
+        @Test
+        @DisplayName("AC INI-19: @Value injects OTEL_EXPORTER_OTLP_ENDPOINT from the active property source")
+        void otlpEndpoint_resolvedFromProperty() {
+            // The runner sets OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:19999.
+            // OtelConfiguration.getOtlpEndpoint() must reflect that — not the fallback.
+            // This proves @Value injection reads from the live Environment, not a literal.
+            //
+            // CONTROL: INI-19
+            runner.run(ctx -> {
+                OtelConfiguration cfg = ctx.getBean(OtelConfiguration.class);
+                assertThat(cfg.getOtlpEndpoint())
+                        .as("@Value must inject OTEL_EXPORTER_OTLP_ENDPOINT from the "
+                                + "active property source (AC INI-19)")
+                        .isEqualTo("http://localhost:19999");
+            });
+        }
     }
 
-    // ------------------------------------------------------------------ //
-    //  OTel-related bean present in context                               //
-    // ------------------------------------------------------------------ //
+    // =========================================================================
+    //  Nested tests: OTEL_EXPORTER_OTLP_ENDPOINT deliberately absent
+    // =========================================================================
 
-    @Test
-    @DisplayName("MeterRegistry bean is present — observability infrastructure is wired")
-    void meterRegistryBean_isPresentInContext() {
-        // MeterRegistry presence confirms that the observability stack can be
-        // assembled without a running OTel collector.  In production this bean
-        // is provided by the Micrometer / Actuator auto-configuration.
-        //
-        // CONTROL: INI-18 | INI-21
-        assertThat(context.getBeanNamesForType(MeterRegistry.class))
-                .as("At least one MeterRegistry bean must be present in the context (AC INI-21)")
-                .isNotEmpty();
+    /**
+     * Tests executed with {@code OTEL_EXPORTER_OTLP_ENDPOINT} deliberately
+     * absent from the property sources. Verifies that the {@code @Value}
+     * fallback in {@link OtelConfiguration} resolves to the correct default
+     * value {@code http://localhost:4318} (AC INI-19).
+     *
+     * <p>This is the critical test that the reviewer flagged as tautological
+     * in the first review: the old implementation compared
+     * {@code "http://localhost:4318".equals("http://localhost:4318")} — a
+     * string literal with itself — which can never fail. The present test
+     * creates a real Spring context <em>without</em> the property set and
+     * reads the injected value from {@link OtelConfiguration#getOtlpEndpoint()},
+     * which exercises the actual {@code @Value} fallback machinery.
+     */
+    @Nested
+    @DisplayName("Without OTEL_EXPORTER_OTLP_ENDPOINT — @Value fallback must apply")
+    class WithoutEndpointProperty {
 
-        assertThat(meterRegistry)
-                .as("MeterRegistry must be injectable into consumers")
-                .isNotNull();
-    }
-
-    @Test
-    @DisplayName("OtelConfiguration bean is present and injected")
-    void otelConfigurationBean_isPresentInContext() {
-        assertThat(otelConfiguration)
-                .as("OtelConfiguration @Configuration bean must be present in the context")
-                .isNotNull();
-    }
-
-    // ------------------------------------------------------------------ //
-    //  AC INI-19 — OTLP endpoint resolution / W3C TraceContext            //
-    // ------------------------------------------------------------------ //
-
-    @Test
-    @DisplayName("AC INI-19: OTLP endpoint resolved from test property (not localhost:4318 fallback)")
-    void otlpEndpoint_resolvedFromTestProperty() {
-        // The test sets OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:19999.
-        // OtelConfiguration must reflect that value (not the fallback default).
-        // This verifies that @Value injection is wired correctly and that
-        // infrastructure addresses are configurable via env vars.
-        //
+        /**
+         * Runner without {@code OTEL_EXPORTER_OTLP_ENDPOINT} — the property
+         * is intentionally absent so the {@code @Value} fallback is exercised.
+         */
+        private final ApplicationContextRunner runner = new ApplicationContextRunner()
+                .withUserConfiguration(MinimalTestConfig.class);
+        // OTEL_EXPORTER_OTLP_ENDPOINT is intentionally NOT added here.
         // CONTROL: INI-19
-        assertThat(otelConfiguration.getOtlpEndpoint())
-                .as("OTLP endpoint must be resolved from OTEL_EXPORTER_OTLP_ENDPOINT property (AC INI-19)")
-                .isEqualTo("http://localhost:19999");
+
+        // ------------------------------------------------------------------ //
+        //  AC INI-19 — @Value fallback when env var is absent                  //
+        // ------------------------------------------------------------------ //
+
+        @Test
+        @DisplayName("AC INI-19: @Value fallback resolves to http://localhost:4318 when property is absent")
+        void otlpEndpoint_fallback_resolvesToDefaultPort() {
+            // OTEL_EXPORTER_OTLP_ENDPOINT is NOT set in this runner.
+            // The @Value annotation in OtelConfiguration is:
+            //   @Value("${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}")
+            // Spring must inject "http://localhost:4318" as the default.
+            //
+            // This test validates the REAL @Value fallback behaviour by reading
+            // the resolved field via getOtlpEndpoint() against a live Spring
+            // Environment — not by comparing two string literals (which would
+            // never fail and prove nothing about @Value wiring).
+            //
+            // Port 4318 is the standard OTLP/HTTP port used by the OTel Collector
+            // and by Jaeger all-in-one mode (plan section 3.2, Premissa P-05).
+            //
+            // CONTROL: INI-19
+            runner.run(ctx -> {
+                OtelConfiguration cfg = ctx.getBean(OtelConfiguration.class);
+                assertThat(cfg.getOtlpEndpoint())
+                        .as("@Value fallback must resolve to the standard OTLP/HTTP "
+                                + "port 4318 when OTEL_EXPORTER_OTLP_ENDPOINT is absent "
+                                + "from the environment (AC INI-19)")
+                        .isEqualTo("http://localhost:4318");
+            });
+        }
+
+        // ------------------------------------------------------------------ //
+        //  AC INI-21 — Context loads even without explicit endpoint             //
+        // ------------------------------------------------------------------ //
+
+        @Test
+        @DisplayName("AC INI-21: context starts without exception when OTEL_EXPORTER_OTLP_ENDPOINT is absent")
+        void contextLoads_withoutExplicitEndpoint() {
+            // Validates that OtelConfiguration and its @PostConstruct logOtlpEndpoint()
+            // do not throw when the OTLP endpoint property is absent (falls back to
+            // the default http://localhost:4318).
+            //
+            // CONTROL: INI-21
+            runner.run(ctx -> assertThat(ctx)
+                    .as("ApplicationContext must start normally when "
+                            + "OTEL_EXPORTER_OTLP_ENDPOINT is absent (AC INI-21)")
+                    .hasNotFailed());
+        }
     }
 
-    @Test
-    @DisplayName("AC INI-19: OTLP endpoint falls back to http://localhost:4318 when env var is absent")
-    void otlpEndpoint_fallback_documentedAsDefaultPort() {
-        // The @Value fallback in OtelConfiguration is:
-        //   @Value("${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}")
-        // This test documents and verifies that the default matches the
-        // standard OTLP/HTTP port (4318) used by the OTel collector and
-        // Jaeger all-in-one mode (plan section 3.2 / Premissa P-05).
-        //
-        // Since the test property source overrides this to port 19999, we
-        // validate the fallback by inspecting the annotation value directly.
-        // The real-world fallback is exercised in integration environments
-        // where no OTEL_EXPORTER_OTLP_ENDPOINT is set.
-        //
-        // CONTROL: INI-19
-        assertThat("http://localhost:4318")
-                .as("Default OTLP endpoint must use standard OTLP/HTTP port 4318")
-                .isEqualTo("http://localhost:4318");
+    // =========================================================================
+    //  Propagator configuration — verified directly from application-observability.yml
+    // =========================================================================
+
+    /**
+     * Verifies that {@code application-observability.yml} declares
+     * {@code otel.propagators=tracecontext,baggage} so that the
+     * {@code opentelemetry-spring-boot-starter} registers
+     * {@code W3CTraceContextPropagator} at runtime (AC INI-19).
+     *
+     * <p>The YAML file is loaded directly via {@link YamlPropertiesFactoryBean}
+     * (the same loader Spring Boot uses internally) instead of relying on
+     * {@code spring.config.import}, which {@link ApplicationContextRunner} does
+     * not fully process the same way as {@code @SpringBootTest}.
+     */
+    @Nested
+    @DisplayName("application-observability.yml — propagator property")
+    class PropagatorConfiguration {
+
+        // ------------------------------------------------------------------ //
+        //  AC INI-19 — W3C TraceContext propagator configured in yml            //
+        // ------------------------------------------------------------------ //
+
+        @Test
+        @DisplayName("AC INI-19: application-observability.yml declares otel.propagators containing 'tracecontext'")
+        void propagators_containsTracecontext() {
+            // Load application-observability.yml from the test classpath using the
+            // same YAML parser Spring Boot uses internally.  This verifies that the
+            // property file — which the opentelemetry-spring-boot-starter reads at
+            // runtime to configure the global TextMapPropagator — declares the
+            // correct propagator chain.
+            //
+            // CONTROL: INI-19
+            YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+            yaml.setResources(new ClassPathResource("application-observability.yml"));
+            Properties props = yaml.getObject();
+
+            assertThat(props).as("application-observability.yml must be loadable from classpath").isNotNull();
+
+            String propagators = props.getProperty("otel.propagators");
+            assertThat(propagators)
+                    .as("otel.propagators must be declared in application-observability.yml (AC INI-19)")
+                    .isNotNull();
+            assertThat(propagators)
+                    .as("otel.propagators must include 'tracecontext' for W3C TraceContext "
+                            + "propagation — required by AC INI-19 (plan section 3.2)")
+                    .contains("tracecontext");
+            assertThat(propagators)
+                    .as("otel.propagators must include 'baggage' for W3C Baggage propagation "
+                            + "(AC INI-19)")
+                    .contains("baggage");
+        }
+
+        @Test
+        @DisplayName("AC INI-19: application-observability.yml declares otel.exporter.otlp.endpoint with fallback")
+        void otlpEndpoint_declaredWithFallbackInYml() {
+            // Verifies that the YAML file uses ${OTEL_EXPORTER_OTLP_ENDPOINT:...}
+            // syntax, meaning the endpoint is configurable without hardcoding.
+            // The raw YAML value (before Spring resolves placeholders) should contain
+            // the OTEL_EXPORTER_OTLP_ENDPOINT reference.
+            //
+            // CONTROL: INI-19
+            YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+            yaml.setResources(new ClassPathResource("application-observability.yml"));
+            Properties props = yaml.getObject();
+
+            assertThat(props).isNotNull();
+
+            // The raw value before Spring placeholder resolution contains the
+            // ${OTEL_EXPORTER_OTLP_ENDPOINT:...} expression.
+            String rawEndpoint = props.getProperty("otel.exporter.otlp.endpoint");
+            assertThat(rawEndpoint)
+                    .as("otel.exporter.otlp.endpoint must be declared in application-observability.yml (AC INI-19)")
+                    .isNotNull();
+            assertThat(rawEndpoint)
+                    .as("otel.exporter.otlp.endpoint must reference OTEL_EXPORTER_OTLP_ENDPOINT "
+                            + "env var (configurable endpoint — plan section 3.2, AC INI-19)")
+                    .contains("OTEL_EXPORTER_OTLP_ENDPOINT");
+        }
     }
 }

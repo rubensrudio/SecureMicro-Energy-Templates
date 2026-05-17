@@ -3,6 +3,7 @@ package com.securemicro.shared.observability;
 // CONTROL: INI-19
 // CONTROL: INI-21
 
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,6 +90,10 @@ public class OtelConfiguration {
     /**
      * Logs the resolved OTLP endpoint at startup for operational visibility.
      *
+     * <p>Invoked automatically by the Spring container after all {@code @Value}
+     * fields have been injected (via {@code @PostConstruct}), ensuring the log
+     * entry appears exactly once per application startup.
+     *
      * <p>This is the only explicit action performed by this configuration class.
      * All OTel SDK wiring (exporter, propagator, sampler) is handled by the
      * {@code opentelemetry-spring-boot-starter} auto-configuration, which reads
@@ -101,6 +106,7 @@ public class OtelConfiguration {
      *
      * <p>CONTROL: INI-19 | INI-21
      */
+    @PostConstruct
     // CONTROL: INI-19
     // CONTROL: INI-21
     void logOtlpEndpoint() {
