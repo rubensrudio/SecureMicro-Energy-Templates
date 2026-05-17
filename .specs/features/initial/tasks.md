@@ -345,6 +345,7 @@
   - `tmpl-rest-api/src/test/java/com/securemicro/tmpl/restapi/integration/AuditTrailIntegrationTest.java`
 - **Descrição**: Implementar testes de integração usando WireMock para simular o JWKS endpoint do Keycloak: (1) `AuthenticationIntegrationTest` — verifica ACs INI-04, INI-05, INI-07, INI-08: 401 sem token, 403 com role errada, 200 com role correta, 200 no health sem token, 401 com token expirado; (2) `AuditTrailIntegrationTest` — verifica AC INI-17: POST /api/v1/resources com token ADMIN emite log com `event-type=AUDIT` contendo subject, action, timestamp e result.
 - **Critério de verificação**: `mvn -pl tmpl-rest-api verify` passa com todos os testes de integração verdes. Critérios de aceite técnico 3 e 6 do plano verificados.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-018
 
 ---
 
