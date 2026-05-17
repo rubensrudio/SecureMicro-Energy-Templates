@@ -132,7 +132,7 @@ As trust boundaries definem os limites onde o nível de confiança muda entre co
 - Audit trail gerado para chamadas que resultam em modificações de dados — CONTROL: INI-17
 - Graceful degradation: se o coletor OTel estiver indisponível, o serviço não falha — CONTROL: INI-21
 
-**Ameaça cruzando esta boundary:** Tampering (manipulação de payload em trânsito), Information Disclosure (dados sensíveis propagados sem controle), Repudiation (chamadas sem rastreabilidade).
+**Ameaça cruzando esta boundary:** Spoofing (downstream falso, SSRF), Tampering (manipulação de payload em trânsito), Repudiation (chamadas sem rastreabilidade), Information Disclosure (dados sensíveis propagados sem controle), Denial of Service (downstream lento causa starvation de threads), Elevation of Privilege (resposta downstream usada como proxy de autorização).
 
 ---
 
@@ -407,6 +407,15 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 
 ### 5.4 STRIDE — TB-04: tmpl-rest-api → Serviços Downstream
 
+#### S — Spoofing
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| Downstream falso (DNS poisoning / MITM) | Serviço conecta-se a endpoint falso que se passa pelo downstream legítimo | TLS entre serviços valida certificado do downstream. mTLS ou verificação de identidade via service mesh (responsabilidade do operador). HTTPS obrigatório para chamadas saintes | INI-19 |
+| SSRF — Server-Side Request Forgery | Input não validado do usuário controla a URL-alvo de chamadas saintes, redirecionando o serviço para endereços internos (metadata da cloud, serviços não expostos) | O template não expõe endpoints que aceitam URL de destino como parâmetro de input. Chamadas downstream usam URLs configuradas via Vault/env vars (não derivadas de input). Allowlist de hosts downstream recomendada para implementações concretas | RN-01, INI-06 |
+
+**Risco residual:** mTLS não configurado no template — responsabilidade do service mesh do operador. SSRF mitigado por design (sem URL derivada de input) mas implementações concretas devem aplicar allowlist de hosts.
+
 #### T — Tampering
 
 | Ameaça | Cenário | Mitigação implementada | CONTROL |
@@ -425,6 +434,23 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 |--------|---------|------------------------|---------|
 | Dados sensíveis em headers propagados | JWT ou secrets propagados sem necessidade para downstream | Apenas headers de correlação e trace são propagados. JWT não é repassado diretamente; re-autenticação via token de serviço se necessário | INI-16 |
 
+#### D — Denial of Service
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| Downstream lento causa starvation do event loop WebFlux | Downstream não responde; chamada pendente bloqueia thread do Reactor, degradando o serviço inteiro via back-pressure | WebClient deve ser configurado com timeout pelo implementador. Circuit breaker (Resilience4j) recomendado para chamadas críticas. JVM flags contêm `MaxRAMPercentage=75%` limitando impacto de memória | RN-09 |
+| Downstream indisponível propaga cascade failure | Falha total do downstream colapsa o serviço chamador sem fallback | Circuit breaker pattern documentado nas boas práticas do template. Graceful degradation via `INI-21` (OTel graceful) serve de modelo | INI-21 |
+
+**Risco residual:** Timeout e circuit breaker não pré-configurados no template — responsabilidade do implementador concreto.
+
+#### E — Elevation of Privilege
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| Resposta downstream usada como proxy de autorização | Downstream malicioso retorna campo como `"is_admin": true` interpretado pelo serviço como autorização interna | Autorização baseia-se exclusivamente no JWT do Keycloak via `@PreAuthorize` + `realm_access.roles`. Respostas de downstream nunca devem ser usadas como decisão de autorização. Schema validation de respostas recomendado | INI-05, INI-07 |
+
+**Risco residual:** Validação de schema de resposta downstream não implementada no template — responsabilidade do implementador concreto.
+
 ---
 
 ### 5.5 STRIDE — TB-05: Kubernetes / Infra → Pod
@@ -434,6 +460,24 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 | Ameaça | Cenário | Mitigação implementada | CONTROL |
 |--------|---------|------------------------|---------|
 | Imagem de container substituída | Imagem maliciosa implantada no registry | SBOM CycloneDX associado à imagem (digest). CI valida CVEs antes do push. Build reproduzível permite verificação de integridade | INI-22, INI-24, INI-26 |
+
+#### T — Tampering
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| ConfigMaps ou env vars adulterados | Processo não autorizado no cluster modifica ConfigMaps ou variáveis de ambiente injetadas no pod, alterando comportamento do serviço | Vault injeta secrets diretamente no processo via Spring Cloud Vault (não via env vars persistentes). RBAC do Kubernetes limita quem pode modificar ConfigMaps do namespace. Admission controller recomendado para bloquear modificações não autorizadas (responsabilidade do operador) | RN-01, INI-12 |
+| Imagem adulterada entre pull e execução | Imagem extraída pelo kubelet difere da construída e assinada pelo CI | Build reproduzível com digest determinístico (INI-24). Pod spec deve referenciar imagem por digest (`@sha256:...`) em vez de tag mutável. CI deve assinar a imagem via Cosign/Sigstore (escopo TASK-025) | INI-24, RN-09 |
+
+**Risco residual:** Referência por digest não imposta no docker-compose de referência (TASK-022). Assinatura de imagem (Cosign/Sigstore) depende de TASK-025.
+
+#### R — Repudiation
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| Ausência de logs de ciclo de vida do pod | Criação, restart e terminação do pod não registrados — auditoria forense pós-incidente impossível | Kubernetes API Server deve ter audit logging habilitado pelo operador (responsabilidade do cluster). Logs do pod (stdout/stderr) capturados pelo log aggregator via sidecar ou DaemonSet | INI-16 |
+| Crash silencioso sem causa auditável | Pod restarta por OOM ou erro JVM sem registro correlacionável | JVM configurada com `-XX:+ExitOnOutOfMemoryError` — falha explícita com mensagem de saída rastreável. Log estruturado JSON captura exceções não tratadas internamente com stack trace (RN-10) | RN-09, RN-10 |
+
+**Risco residual:** Audit logging do Kubernetes API Server (eventos de ciclo de vida de pod) depende de configuração do cluster pelo operador, fora do escopo do template.
 
 #### I — Information Disclosure
 
@@ -453,7 +497,7 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 
 | Ameaça | Cenário | Mitigação implementada | CONTROL |
 |--------|---------|------------------------|---------|
-| Processo rodando como root no container | Vulnerabilidade de container escape com root dá acesso ao host | Dockerfile/Jib configurado com usuário não-root (UID 1000). `securityContext.runAsNonRoot: true` no pod spec de referência | RN-09 |
+| Processo rodando como root no container | Vulnerabilidade de container escape com root dá acesso ao host | Dockerfile/Jib configurado com usuário não-root (UID 65532). `securityContext.runAsNonRoot: true` no pod spec de referência | RN-09 |
 | Supply chain attack via dependência Maven | Dependência maliciosa injetada no build | CI executa Trivy para CVE scan. SBOM CycloneDX lista todas as dependências. CI falha em CVE crítica ou alta | INI-22, INI-25, RN-08 |
 
 ---
@@ -474,6 +518,7 @@ As ameaças listadas nesta seção foram explicitamente identificadas e document
 | OOS-08 | Vulnerabilidades zero-day na JVM (Java Virtual Machine) | Fora do controle do serviço. Gerenciado por processo de patch da imagem base e CVE scan do Trivy | Operador / Time de infra |
 | OOS-09 | Denial of Service distribuído (DDoS) em escala de rede | Tratado por WAF e CDN na camada de ingress. O pod não tem capacidade de mitigar DDoS de forma isolada | Operador / Time de rede |
 | OOS-10 | Gerenciamento do ciclo de vida de chaves privadas do Keycloak (rotação de RSA keypair) | O template valida tokens com chaves públicas (JWKS). A gestão das chaves privadas é responsabilidade do admin do Keycloak | Admin Keycloak |
+| OOS-11 | SQL Injection via payload de entrada | O template `tmpl-rest-api` é stateless e não possui integração direta com banco de dados relacional — não há queries SQL geradas pelo template. SQL injection deve ser tratada como ameaça primária quando o engenheiro adaptar o template para persistência com JPA/R2DBC. Nesse caso, usar exclusivamente queries parametrizadas (PreparedStatement / Spring Data repositories) | Engenheiro implementador |
 
 ---
 
