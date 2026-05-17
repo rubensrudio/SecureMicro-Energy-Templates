@@ -1,0 +1,99 @@
+# =============================================================================
+# application.yml — TEST PROFILE
+#
+# This file is placed in src/test/resources/ and takes precedence over the
+# external config/application.yml during Maven test execution.
+#
+# Purpose: provide a minimal, self-contained configuration so that unit tests
+# (ResourceControllerTest, HelloControllerTest, ActuatorConfigurationTest, etc.)
+# can start the Spring Boot context without:
+#   - A live Vault instance (spring.cloud.vault.enabled=false)
+#   - A live Keycloak instance (placeholder values for @Value bindings)
+#   - The duplicate-key YAML error present in config/application.yml
+#     (that file is loaded from the working directory by Spring Boot's
+#     external config search; this file in the classpath overrides it).
+#
+# CONTROL: RN-01 — no secrets in this file (all values are placeholders).
+# =============================================================================
+
+spring:
+  application:
+    name: tmpl-rest-api
+
+  # Disable Vault entirely for tests — no Vault instance required.
+  # CONTROL: RN-01 — tests must not require real secrets infrastructure.
+  cloud:
+    vault:
+      enabled: false
+
+  # Suppress the config import that references Vault paths.
+  # Without this, Spring Boot attempts to resolve vault:// URLs even when
+  # spring.cloud.vault.enabled=false.
+  config:
+    import: ""
+
+  # Placeholder security config — binds the @Value fields in
+  # IdentitySecurityConfiguration without triggering OIDC discovery.
+  # The actual JWT decoder is replaced by a mock in tests.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9999/realms/test
+
+# Placeholder values for @Value fields in IdentitySecurityConfiguration.
+# These prevent BeanCreationException on context load; actual JWT validation
+# is bypassed by @MockBean(ReactiveJwtDecoder.class) in full-context tests
+# and by mockJwt() in @WebFluxTest slice tests.
+KEYCLOAK_ISSUER_URI: http://localhost:9999/realms/test
+JWT_AUDIENCE: test
+
+# Keycloak placeholder — prevents ${keycloak.client-secret} bind failure.
+# The real value is injected by Vault in production; tests don't need it.
+keycloak:
+  client-secret: test-placeholder-not-a-real-secret
+  jwt-audience: test
+
+# Service placeholder — prevents ${service.api-key} bind failure.
+service:
+  api-key: test-placeholder-not-a-real-key
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+server:
+  port: 0
+  error:
+    include-stacktrace: never
+    include-exception: false
+    include-message: never
+    include-binding-errors: never
+
+logging:
+  level:
+    root: WARN
+    com.securemicro: INFO
+    org.springframework.security: WARN
+    org.springframework.cloud.vault: WARN
