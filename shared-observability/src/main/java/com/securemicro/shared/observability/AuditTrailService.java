@@ -105,6 +105,7 @@ public class AuditTrailService {
      * @param reason   optional human-readable explanation (used mainly on
      *                 failure/denial); {@code null} stored as {@code "null"}
      */
+    // CONTROL: RN-04
     // CONTROL: INI-17
     public void audit(String subject,
                       String action,

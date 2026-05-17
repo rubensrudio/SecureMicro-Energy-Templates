@@ -85,6 +85,21 @@ e INI-26 (SBOM associado à imagem) são controles que dependem de
 configuração de CI/CD externa ao código do template e serão documentados
 em tasks subsequentes.
 
+### RN-06 — Verificação de Integridade de Artefato no CI
+
+RN-06 é implementado no pipeline CI, fora do escopo deste repositório de
+aplicação. A verificação de integridade (checksum/assinatura de artefato)
+será configurada nas definições de pipeline quando criadas em TASK-025.
+Referência: `.github/workflows/` ou `Jenkinsfile` (a serem criados em
+TASK-025).
+
+### RN-07 — Mapeamento de Controles (este documento)
+
+Este documento em si é a implementação do controle RN-07 (rastreabilidade
+bidirecional entre requisitos federais e código). Auto-referência como
+entrada na tabela não é aplicável — o documento não pode rastrear a si
+mesmo como artefato de código.
+
 ---
 
 ## Rastreabilidade Bidirecional
