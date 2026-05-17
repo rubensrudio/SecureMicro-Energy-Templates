@@ -178,6 +178,7 @@
          Reproducible build: pinning the output timestamp guarantees that
          the JAR manifest and archive entries have a deterministic timestamp,
          which is a prerequisite for producing the same digest across builds.
+         CONTROL: INI-24 — reproducible digest via fixed outputTimestamp.
          AC INI-24 / CONTROL: RN-09
          Override in CI via -Dproject.build.outputTimestamp=<ISO8601>.
          ================================================================ -->
