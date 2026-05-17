@@ -21,6 +21,8 @@
 # CONTROL: RN-01 — zero real secrets in this file; all values are
 #   dev-placeholder-not-for-production or point to the Vault dev token
 #   (token=root is the HashiCorp Vault dev-mode default — never use in prod).
+# CONTROL: RN-02 — Keycloak is the OIDC provider for tmpl-rest-api JWT
+#   validation with MFA enabled (see keycloak/realm-export.json).
 # =============================================================================
 
 name: securemicro-reference-deploy
@@ -56,17 +58,27 @@ services:
   # Port mapping: 8180 (host) → 8080 (container)
   #   Port 8180 is chosen on the host to avoid collision with tmpl-rest-api:8080.
   #
+  # Realm import: realm-export.json is bind-mounted read-only into
+  #   /opt/keycloak/data/import/ and loaded at startup via --import-realm.
+  #   This activates CONTROL: INI-09 (MFA TOTP) and CONTROL: RN-02 (OIDC realm).
+  #
   # CONTROL: RN-01 — no real admin password; placeholder value only.
   # CONTROL: RN-02 — Keycloak is the OIDC provider for tmpl-rest-api JWT validation.
   # CONTROL: INI-09 — Keycloak realm is pre-configured with MFA (TOTP) via
   #   realm-export.json imported at startup (otpPolicyType: totp, CONFIGURE_TOTP
-  #   required action). See reference-deploy/keycloak/realm-export.json.
+  #   required action, browserFlow: browser-with-otp).
+  #   See reference-deploy/keycloak/realm-export.json.
   # ---------------------------------------------------------------------------
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.4
     container_name: securemicro-keycloak
     # WARNING: DEV MODE ONLY — start-dev disables TLS and uses H2 in-memory DB
-    command: start-dev
+    # --import-realm: instructs Keycloak to import any realm JSON files found in
+    #   /opt/keycloak/data/import/ at startup. The realm-export.json is bind-mounted
+    #   into that path (see volumes below). CONTROL: INI-09 — activates MFA TOTP realm.
+    command:
+      - start-dev
+      - --import-realm
     environment:
       # CONTROL: RN-01 — placeholder credentials; NEVER use these in production
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
@@ -86,7 +98,20 @@ services:
     networks:
       - securemicro-net
     volumes:
+      # Persistent volume for Keycloak data (themes, sessions, etc.)
       - keycloak-data:/opt/keycloak/data
+      # Bind-mount the keycloak/ directory read-only as /opt/keycloak/data/import/.
+      # Docker mounts the host directory (./keycloak/) onto the container path even
+      # when that path does not pre-exist in the image, guaranteeing that
+      # realm-export.json is present as a regular file for DirImportProvider.
+      # Mounting the file directly (file-level bind-mount) causes Docker to create
+      # the parent directory as a directory entry, silently turning realm-export.json
+      # into an empty directory inside the container — this directory-level mount
+      # avoids that silent failure.
+      # CONTROL: INI-09 — MFA TOTP realm is activated via this import.
+      # CONTROL: RN-01 — imported realm contains no real secret values.
+      # CONTROL: RN-02 — OIDC realm (tmpl-rest-api) is provisioned automatically.
+      - ./keycloak:/opt/keycloak/data/import:ro
     healthcheck:
       test:
         - CMD-SHELL
