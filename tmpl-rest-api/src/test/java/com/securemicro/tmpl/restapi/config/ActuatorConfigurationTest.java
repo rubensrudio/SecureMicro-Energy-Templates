@@ -62,6 +62,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "KEYCLOAK_ISSUER_URI=http://localhost:9999/realms/test",
         "JWT_AUDIENCE=test",
         // Disable Vault so the context starts without a live Vault instance.
+        // spring.config.location is restricted to classpath:/ in surefire
+        // systemPropertyVariables (tmpl-rest-api/pom.xml) to prevent
+        // tmpl-rest-api/config/application.yml vault:// imports from loading.
         // CONTROL: RN-01 — tests must not require real secrets infrastructure.
         "spring.cloud.vault.enabled=false",
         "spring.config.import=",

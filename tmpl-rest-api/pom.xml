@@ -188,6 +188,13 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>-Dnet.bytebuddy.experimental=true -Dotel.sdk.disabled=true</argLine>
+                    <!-- Restrict Spring Boot config search to classpath only during tests.
+                         Prevents tmpl-rest-api/config/application.yml (external deploy config
+                         with vault:// imports) from being loaded via the file:./config/
+                         search path. All test overrides go through src/test/resources. -->
+                    <systemPropertyVariables>
+                        <spring.config.location>classpath:/</spring.config.location>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 
