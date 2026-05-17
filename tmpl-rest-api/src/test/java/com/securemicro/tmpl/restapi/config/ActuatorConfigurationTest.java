@@ -65,22 +65,28 @@ import static org.assertj.core.api.Assertions.assertThat;
         // CONTROL: RN-01 — tests must not require real secrets infrastructure.
         "spring.cloud.vault.enabled=false",
         "spring.config.import=",
-        // Override config location to use only classpath resources.
-        // This prevents Spring Boot from picking up tmpl-rest-api/config/application.yml
-        // (the operator-facing config file intended for production deployment, not for
-        // the test classpath), which would cause a DuplicateKeyException because that
-        // file has the management key split across two YAML documents.
-        "spring.config.location=classpath:/",
         // Placeholder bindings to satisfy @Value in IdentitySecurityConfiguration
         "keycloak.client-secret=test-placeholder",
         "keycloak.jwt-audience=test",
         "service.api-key=test-placeholder",
-        // Disable OTel tracing in tests: the opentelemetry-spring-boot-starter
-        // may fail with ClassNotFoundException (EventLoggerProvider) depending
-        // on the resolved OTel incubator version. Tracing is orthogonal to the
-        // Actuator health/metrics endpoints being tested here.
-        "management.tracing.enabled=false",
-        "otel.sdk.disabled=true"
+        // Actuator endpoint configuration — explicit properties override YAML.
+        // CONTROL: RN-05 | INI-18 | INI-20
+        "management.endpoints.web.exposure.include=health,prometheus",
+        "management.endpoint.health.show-details=never",
+        "management.endpoint.health.probes.enabled=true",
+        "management.endpoint.prometheus.enabled=true",
+        "management.health.livenessstate.enabled=true",
+        "management.health.readinessstate.enabled=true",
+        // Spring Boot 3.x property name for enabling the Prometheus registry.
+        // @ConditionalOnEnabledMetricsExport checks management.prometheus.metrics.export.enabled
+        // (the old management.metrics.export.prometheus.enabled is Spring Boot 2.x only).
+        "management.prometheus.metrics.export.enabled=true",
+        // OTel SDK disabled at JVM level via -Dotel.sdk.disabled=true in surefire argLine.
+        // Suppress server error configuration to allow WebFlux error handling
+        // to propagate correctly to WebTestClient.
+        "server.error.include-stacktrace=never",
+        "server.error.include-exception=false",
+        "server.error.include-message=never"
 })
 class ActuatorConfigurationTest {
 
