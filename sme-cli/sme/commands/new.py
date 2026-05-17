@@ -9,10 +9,27 @@ Implements AC INI-35 and AC INI-36:
      requirement in TASK-028 description).
   4. Copy the template source tree to ./<project-name>/.
   5. Recursively replace 'com.securemicro.tmpl.restapi' with
-     'com.securemicro.<project-name>' in all .java, .xml, .yml / .yaml files.
+     'com.securemicro.<java-package-segment>' in all .java, .xml, .yml / .yaml
+     files, where <java-package-segment> is project-name with hyphens replaced
+     by underscores (JLS §3.8 — hyphens are illegal in Java package identifiers).
   6. Update <artifactId> and <name> in pom.xml to <project-name>.
   7. Display manual post-generation instructions for Keycloak client
      configuration and Vault paths (Premissa P-06).
+
+IMPORTANT — Java package naming (JLS §3.8):
+  Hyphens are illegal Java identifiers.  'package com.securemicro.meu-servico;'
+  is rejected by javac with a syntax error.  The function `_java_package_segment`
+  converts project-name to a legal segment by replacing each '-' with '_'.
+
+  Uses of project_name vs java_package_segment:
+    - project_name (original, may contain hyphens):
+        * destination directory name
+        * <artifactId> in pom.xml
+        * <name> in pom.xml
+        * post-generation display / instructions
+    - java_package_segment (hyphens → underscores):
+        * Java package string: com.securemicro.<java_package_segment>
+        * Source directory tree path (Java convention)
 """
 
 from __future__ import annotations
@@ -47,7 +64,12 @@ _TEXT_EXTENSIONS: frozenset[str] = frozenset(
 # Only lowercase/uppercase letters, digits and hyphens are permitted.
 # This prevents path traversal (no '/', '..'), shell injection (no ';', '$',
 # '`', '|', '&', etc.) and other special characters.
-PROJECT_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9\-]*$")
+# The pattern also rejects names that start or END with a hyphen (e.g.
+# 'meu-servico-' is rejected) — a trailing hyphen is nonsensical and would
+# produce a Java package segment ending with '_', which is misleading.
+PROJECT_NAME_RE: re.Pattern[str] = re.compile(
+    r"^[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?$"
+)
 
 
 def _validate_project_name(project_name: str) -> None:
@@ -55,12 +77,27 @@ def _validate_project_name(project_name: str) -> None:
     if not PROJECT_NAME_RE.fullmatch(project_name):
         click.echo(
             f"Error: invalid project name '{project_name}'.\n"
-            "Project names must start with a letter or digit and may only "
-            "contain letters, digits and hyphens (no spaces, slashes, dots "
-            "or special characters).",
+            "Project names must start and end with a letter or digit and may "
+            "only contain letters, digits and hyphens (no spaces, slashes, "
+            "dots, special characters, or leading/trailing hyphens).",
             err=True,
         )
         sys.exit(1)
+
+
+def _java_package_segment(project_name: str) -> str:
+    """Return a Java-legal package segment derived from project_name.
+
+    Java identifiers (JLS §3.8) cannot contain hyphens.  Each hyphen in
+    project_name is replaced with an underscore so that the resulting package
+    string is accepted by javac.
+
+    Examples:
+        'meu-servico'   -> 'meu_servico'
+        'my-api-v2'     -> 'my_api_v2'
+        'myservice'     -> 'myservice'
+    """
+    return project_name.replace("-", "_")
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +281,11 @@ def run(template_name: str, project_name: str) -> None:
     shutil.copytree(str(source), str(destination))
 
     # --- Step 5: replace Java package in text files ---
-    new_package = f"com.securemicro.{project_name}"
+    # Use underscores instead of hyphens in the package segment: hyphens are
+    # illegal Java identifiers (JLS §3.8).  The directory name and pom.xml
+    # artifact metadata continue to use the original project_name (with hyphens).
+    pkg_segment = _java_package_segment(project_name)
+    new_package = f"com.securemicro.{pkg_segment}"
     click.echo(
         f"Replacing package '{OLD_JAVA_PACKAGE}' -> '{new_package}' in source files..."
     )

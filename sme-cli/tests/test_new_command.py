@@ -21,6 +21,7 @@ from click.testing import CliRunner
 from sme.cli import main
 from sme.commands.new import (
     PROJECT_NAME_RE,
+    _java_package_segment,
     _replace_in_file,
     _resolve_template_source,
 )
@@ -136,12 +137,41 @@ class TestProjectNameValidation:
             "foo\nbar",
             "foo.bar",
             "_underscore",
+            # Trailing hyphen must be rejected (MAJOR fix)
+            "meu-servico-",
+            "-leading-hyphen",
         ],
     )
     def test_invalid_names_do_not_match(self, name: str) -> None:
         assert PROJECT_NAME_RE.fullmatch(name) is None, (
             f"Expected '{name}' to be rejected"
         )
+
+
+class TestJavaPackageSegment:
+    """_java_package_segment must convert hyphens to underscores (JLS §3.8)."""
+
+    @pytest.mark.parametrize(
+        ("project_name", "expected_segment"),
+        [
+            ("meu-servico", "meu_servico"),
+            ("my-api-v2", "my_api_v2"),
+            ("myservice", "myservice"),
+            ("ABC-XYZ", "ABC_XYZ"),
+            ("a", "a"),
+            ("service123", "service123"),
+        ],
+    )
+    def test_converts_hyphens_to_underscores(
+        self, project_name: str, expected_segment: str
+    ) -> None:
+        assert _java_package_segment(project_name) == expected_segment
+
+    def test_result_is_valid_java_identifier_segment(self) -> None:
+        """Verify that the output contains no hyphens (Java-illegal chars)."""
+        result = _java_package_segment("meu-servico-energy")
+        assert "-" not in result
+        assert result == "meu_servico_energy"
 
 
 class TestReplaceInFile:
@@ -261,6 +291,75 @@ class TestNewCommandSuccess:
             assert "com.securemicro.tmpl.restapi" not in content, (
                 f"Old package still present in {jf}"
             )
+
+    def test_java_package_uses_underscore_not_hyphen(
+        self,
+        runner: CliRunner,
+        minimal_template: Path,
+        tmp_project_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """BLOCKER 1 fix: when project_name contains hyphens, the generated Java
+        package must use underscores (JLS §3.8 — hyphens are illegal identifiers).
+
+        'meu-servico' -> package 'com.securemicro.meu_servico' (underscore).
+        The directory name and artifactId remain 'meu-servico' (hyphen).
+        """
+        monkeypatch.setattr(
+            "sme.commands.new._resolve_template_source",
+            lambda _name: minimal_template,
+        )
+        runner.invoke(main, ["new", "tmpl-rest-api", "meu-servico"])
+        java_files = list((tmp_project_dir / "meu-servico").rglob("*.java"))
+        assert java_files, "Expected at least one .java file in the generated project"
+        for jf in java_files:
+            content = jf.read_text(encoding="utf-8")
+            # Must use underscore — hyphen is illegal in Java package names
+            assert "com.securemicro.meu_servico" in content, (
+                f"Expected 'com.securemicro.meu_servico' (underscore) in {jf}, "
+                f"got: {content!r}"
+            )
+            # Must NOT contain the hyphen variant
+            assert "com.securemicro.meu-servico" not in content, (
+                f"Illegal Java package 'com.securemicro.meu-servico' (hyphen) "
+                f"found in {jf}"
+            )
+
+    def test_yml_package_reference_uses_underscore(
+        self,
+        runner: CliRunner,
+        minimal_template: Path,
+        tmp_project_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Package replacement in .yml files must also produce the underscore form."""
+        monkeypatch.setattr(
+            "sme.commands.new._resolve_template_source",
+            lambda _name: minimal_template,
+        )
+        runner.invoke(main, ["new", "tmpl-rest-api", "meu-servico"])
+        yml = tmp_project_dir / "meu-servico" / "config" / "application.yml"
+        content = yml.read_text(encoding="utf-8")
+        assert "com.securemicro.meu_servico" in content
+        assert "com.securemicro.tmpl.restapi" not in content
+
+    def test_directory_name_keeps_hyphen(
+        self,
+        runner: CliRunner,
+        minimal_template: Path,
+        tmp_project_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The destination directory name must preserve hyphens from project_name."""
+        monkeypatch.setattr(
+            "sme.commands.new._resolve_template_source",
+            lambda _name: minimal_template,
+        )
+        runner.invoke(main, ["new", "tmpl-rest-api", "meu-servico"])
+        # Directory 'meu-servico' (with hyphen) must exist
+        assert (tmp_project_dir / "meu-servico").is_dir()
+        # Directory 'meu_servico' (with underscore) must NOT exist
+        assert not (tmp_project_dir / "meu_servico").exists()
 
     def test_no_old_package_string_anywhere_in_text_files(
         self,
