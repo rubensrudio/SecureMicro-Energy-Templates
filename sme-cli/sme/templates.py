@@ -4,7 +4,7 @@
 
 AVAILABLE_TEMPLATES: dict[str, dict[str, str]] = {
     "tmpl-rest-api": {
-        "path": "../tmpl-rest-api",
+        "path": "tmpl-rest-api",
         "description": (
             "Spring Boot 3 WebFlux REST API with OIDC (Keycloak), "
             "HashiCorp Vault secrets management, structured JSON logging, "
