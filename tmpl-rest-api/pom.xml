@@ -5,6 +5,28 @@
                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ================================================================
+         tmpl-rest-api — Spring Boot WebFlux REST API template
+         Inherits version management from the root BOM.
+
+         This module is the main deliverable of TASK-013.  It wires
+         the four shared-* libraries together with the WebFlux runtime
+         and exposes a skeleton application that compiles cleanly.
+
+         Subsequent tasks (TASK-014 through TASK-021) will add:
+           - application.yml with Vault imports (TASK-014)
+           - WebFlux controllers (TASK-015)
+           - Actuator / health configuration (TASK-016)
+           - Security error handlers (TASK-017)
+           - Integration tests (TASK-018)
+           - Dockerfile + Jib + CycloneDX (TASK-019)
+           - Threat model and control-mapping (TASK-020, TASK-021)
+
+         groupId    : com.securemicro
+         artifactId : tmpl-rest-api
+         Package    : com.securemicro.tmpl.restapi
+         ================================================================ -->
+
     <parent>
         <groupId>com.securemicro</groupId>
         <artifactId>secure-micro-energy-templates</artifactId>
@@ -20,7 +42,159 @@
         security controls: Keycloak OIDC, HashiCorp Vault secrets, structured
         JSON logging, Micrometer metrics, OTel tracing, SBOM generation and
         reproducible container builds.
-        Phase 1 — implementation in TASK-013 through TASK-021.
+        Phase 1 - implementation in TASK-013 through TASK-021.
     </description>
+
+    <!-- ================================================================
+         Dependencies
+         All versions are managed by the root BOM; child modules declare
+         only groupId + artifactId (plus scope/version when required).
+         ================================================================ -->
+    <dependencies>
+
+        <!-- ============================================================
+             Internal shared libraries — resolved as Maven local artifacts
+             installed by the reactor build order declared in the root POM.
+             The root dependencyManagement block pins these to
+             ${project.version}, so no version literal is needed here.
+             ============================================================ -->
+
+        <!-- shared-controls: SecurityHeadersFilter (WebFilter) and
+             GlobalExceptionHandler.  Both carry @ConditionalOnMissingBean
+             so this module may override them in later tasks without conflict.
+             CONTROL: RN-10 -->
+        <dependency>
+            <groupId>com.securemicro</groupId>
+            <artifactId>shared-controls</artifactId>
+            <!-- version managed by root dependencyManagement -->
+        </dependency>
+
+        <!-- shared-observability: structured JSON logging (Logstash),
+             Micrometer / Prometheus registry, and OpenTelemetry tracing.
+             CONTROL: INI-16 | INI-18 | INI-19 | INI-21 -->
+        <dependency>
+            <groupId>com.securemicro</groupId>
+            <artifactId>shared-observability</artifactId>
+            <!-- version managed by root dependencyManagement -->
+        </dependency>
+
+        <!-- shared-identity: IdentitySecurityConfiguration with
+             @EnableWebFluxSecurity, ReactiveJwtDecoder (Keycloak JWKS),
+             and role-based authorization.
+             Requires KEYCLOAK_ISSUER_URI and JWT_AUDIENCE env vars at runtime.
+             CONTROL: INI-04 | INI-05 | INI-06 | INI-07 | RN-02 -->
+        <dependency>
+            <groupId>com.securemicro</groupId>
+            <artifactId>shared-identity</artifactId>
+            <!-- version managed by root dependencyManagement -->
+        </dependency>
+
+        <!-- shared-secrets: Spring Cloud Vault bootstrap (ConfigData API),
+             KV v2 property source, and secret masking in logs.
+             Disabled via spring.cloud.vault.enabled=false in local / test profiles.
+             CONTROL: RN-01 | INI-11 | INI-12 -->
+        <dependency>
+            <groupId>com.securemicro</groupId>
+            <artifactId>shared-secrets</artifactId>
+            <!-- version managed by root dependencyManagement -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Starter WebFlux — reactive HTTP server (Netty +
+             Project Reactor).  Required because this service is built on
+             the reactive stack (PRD section 5.2 mandates WebFlux).
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Starter Actuator — health probes, readiness /
+             liveness endpoints, Micrometer metrics export.
+             CONTROL: RN-05 | INI-18 | INI-20
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             SpringDoc OpenAPI WebFlux UI (2.x) — generates an OpenAPI 3
+             specification and serves Swagger UI at /swagger-ui.html.
+             Compatible with Spring Boot 3.3.x.
+             Version pinned in root POM property: springdoc-openapi.version
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+            <version>${springdoc-openapi.version}</version>
+        </dependency>
+
+        <!-- ============================================================
+             TEST SCOPE
+             ============================================================ -->
+
+        <!-- Spring Boot Test — JUnit 5, Mockito, AssertJ, WebTestClient,
+             @SpringBootTest slice support. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Reactor Test — StepVerifier for reactive pipeline assertions. -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Security Test — mockJwt(), SecurityMockServerConfigurers.
+             Used in TASK-018 integration tests. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- WireMock Standalone — mocks Keycloak JWKS and OIDC discovery
+             endpoints in integration tests without a live Keycloak instance.
+             Version managed by root dependencyManagement (wiremock.version). -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ================================================================
+         Build
+         ================================================================ -->
+    <build>
+        <plugins>
+
+            <!-- Spring Boot Maven Plugin — repackages the JAR into an
+                 executable fat-JAR with embedded Netty server.
+                 Plugin version managed by root pluginManagement. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+        </plugins>
+    </build>
 
 </project>
