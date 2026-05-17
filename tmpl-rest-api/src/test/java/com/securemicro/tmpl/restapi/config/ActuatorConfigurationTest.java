@@ -64,12 +64,23 @@ import static org.assertj.core.api.Assertions.assertThat;
         // Disable Vault so the context starts without a live Vault instance.
         // CONTROL: RN-01 — tests must not require real secrets infrastructure.
         "spring.cloud.vault.enabled=false",
+        "spring.config.import=",
         // Override config location to use only classpath resources.
         // This prevents Spring Boot from picking up tmpl-rest-api/config/application.yml
         // (the operator-facing config file intended for production deployment, not for
         // the test classpath), which would cause a DuplicateKeyException because that
         // file has the management key split across two YAML documents.
-        "spring.config.location=classpath:/"
+        "spring.config.location=classpath:/",
+        // Placeholder bindings to satisfy @Value in IdentitySecurityConfiguration
+        "keycloak.client-secret=test-placeholder",
+        "keycloak.jwt-audience=test",
+        "service.api-key=test-placeholder",
+        // Disable OTel tracing in tests: the opentelemetry-spring-boot-starter
+        // may fail with ClassNotFoundException (EventLoggerProvider) depending
+        // on the resolved OTel incubator version. Tracing is orthogonal to the
+        // Actuator health/metrics endpoints being tested here.
+        "management.tracing.enabled=false",
+        "otel.sdk.disabled=true"
 })
 class ActuatorConfigurationTest {
 
