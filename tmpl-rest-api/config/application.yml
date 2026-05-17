@@ -1,0 +1,231 @@
+# =============================================================================
+# tmpl-rest-api — application.yml
+#
+# CONTROL: RN-01 — Zero secrets in env vars, config files or VCS.
+#
+# This file contains ALL runtime configuration for the service.
+# ZERO secret values appear in plain text here.
+#
+# Secret resolution strategy:
+#   - HashiCorp Vault KV v2 paths are imported via spring.config.import.
+#   - spring.config.import=vault:// (WITHOUT "optional:") forces fail-fast:
+#     if Vault is unreachable at startup, the service refuses to start with
+#     a clear error message.  Silencing Vault errors via "optional:vault://"
+#     is PROHIBITED by RN-01 and the edge-case requirement in spec.md.
+#   - KEYCLOAK_ISSUER_URI and JWT_AUDIENCE are required environment variables
+#     with NO default value.  The absence of a default forces fail-fast on
+#     startup when the variable is not set (AC INI-06).
+#
+# Operator responsibility:
+#   This file is stored OUTSIDE src/main/resources/ so that it is NOT
+#   packaged in the JAR.  The operator copies it to the runtime working
+#   directory or mounts it as a ConfigMap / bind-mount.
+#
+# See: tmpl-rest-api/config/vault-paths.md  for the full Vault path registry.
+# =============================================================================
+
+# CONTROL: RN-01
+spring:
+  application:
+    name: tmpl-rest-api
+
+  # ---------------------------------------------------------------------------
+  # Vault secret import — REQUIRED (no "optional:" prefix)
+  #
+  # CONTROL: RN-01 — vault:// without "optional:" enforces fail-fast behaviour.
+  #
+  # Spring Cloud Vault resolves these KV v2 paths before the application
+  # context is fully initialised.  The values are injected as a high-priority
+  # PropertySource and become available to every @Value / @ConfigurationProperties
+  # bean in the context.
+  #
+  # KV v2 path structure (engine: secret, module: tmpl-rest-api):
+  #   secret/tmpl-rest-api/keycloak   → client-secret
+  #   secret/tmpl-rest-api/service    → api-key
+  #   secret/tmpl-rest-api/db         → username, password  (reserved for future use)
+  #
+  # Full path registry: tmpl-rest-api/config/vault-paths.md
+  # ---------------------------------------------------------------------------
+  config:
+    # CONTROL: RN-01 — vault:// (no "optional:") — fail-fast on Vault unavailability
+    import: "vault://secret/tmpl-rest-api/keycloak,vault://secret/tmpl-rest-api/service,vault://secret/tmpl-rest-api/db"
+
+  # ---------------------------------------------------------------------------
+  # Spring Cloud Vault connection coordinates
+  #
+  # VAULT_ADDR  — full Vault server URL (e.g. https://vault.internal:8200)
+  # VAULT_TOKEN — token with read access to KV paths (dev: root token)
+  #
+  # CONTROL: RN-01 — no literal credential values; env var references only.
+  # ---------------------------------------------------------------------------
+  cloud:
+    vault:
+      # URI of the Vault server — injected from env var at runtime.
+      uri: ${VAULT_ADDR}
+      # Token authentication (development default; AppRole for production).
+      authentication: TOKEN
+      token: ${VAULT_TOKEN}
+      # fail-fast=true: abort startup if Vault is unreachable.
+      # CONTROL: RN-01 — never start with unresolved secrets.
+      fail-fast: true
+      kv:
+        enabled: true
+        backend: secret
+        # Default context provides the shared KV paths imported above.
+        default-context: tmpl-rest-api
+
+  # ---------------------------------------------------------------------------
+  # Security — OAuth2 Resource Server (Keycloak OIDC)
+  #
+  # KEYCLOAK_ISSUER_URI — required env var; NO default.  Format:
+  #   https://<keycloak-host>/realms/<realm-name>
+  #   Example: https://keycloak.internal/realms/tmpl-rest-api
+  #
+  # AC INI-06: issuer URI resolved from env var — never hardcoded.
+  # CONTROL: RN-01 — no literal issuer URL or credentials in this file.
+  #
+  # keycloak.client-secret is NOT configured here.  It is resolved from
+  # Vault path secret/tmpl-rest-api/keycloak.client-secret via
+  # spring.config.import above.
+  # ---------------------------------------------------------------------------
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # CONTROL: RN-01 — issuer-uri from env var, no hardcoded value.
+          # AC INI-06 — KEYCLOAK_ISSUER_URI env var; fail-fast if absent.
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+# ---------------------------------------------------------------------------
+# Keycloak client configuration
+#
+# client-secret is provided by Vault (secret/tmpl-rest-api/keycloak).
+# After Vault resolution, Spring injects it as keycloak.client-secret.
+#
+# JWT_AUDIENCE — required env var; NO default.  Must match the "aud" claim
+#   in tokens issued by Keycloak for this client.
+#
+# CONTROL: RN-01 — no secret value in plain text.
+# ---------------------------------------------------------------------------
+# CONTROL: RN-01
+keycloak:
+  # client-secret resolved from vault://secret/tmpl-rest-api/keycloak
+  # Key: client-secret — referenced in shared-identity as ${keycloak.client-secret}
+  # Value: injected by Spring Cloud Vault at startup — NEVER set here.
+  client-secret: ${keycloak.client-secret}
+  # JWT audience claim — required env var; fail-fast if not set.
+  jwt-audience: ${JWT_AUDIENCE}
+
+# ---------------------------------------------------------------------------
+# Service-level API key
+#
+# api-key is provided by Vault (secret/tmpl-rest-api/service).
+# After Vault resolution, Spring injects it as service.api-key.
+#
+# CONTROL: RN-01 — no literal key value.
+# ---------------------------------------------------------------------------
+# CONTROL: RN-01
+service:
+  # api-key resolved from vault://secret/tmpl-rest-api/service
+  # Key: api-key — referenced as ${service.api-key} in controllers/filters.
+  # Value: injected by Spring Cloud Vault at startup — NEVER set here.
+  api-key: ${service.api-key}
+
+# ---------------------------------------------------------------------------
+# Spring Boot Actuator and Tracing
+#
+# Exposes health, liveness, readiness and prometheus endpoints WITHOUT
+# authentication — required for Kubernetes probes and Prometheus scraping.
+#
+# CONTROL: RN-05 — health/readiness/liveness probes present and functional.
+# CONTROL: INI-18 — /actuator/prometheus exposes Micrometer metrics.
+# CONTROL: INI-19 — W3C TraceContext propagation to downstream services.
+# CONTROL: INI-20 — liveness and readiness probes present.
+# CONTROL: INI-21 — graceful degradation when OTel collector unavailable.
+# ---------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        # CONTROL: RN-05 | INI-18 | INI-20
+        include: health,prometheus
+  endpoint:
+    health:
+      # Show minimal details — avoids leaking internal component versions.
+      # CONTROL: RN-10 — stack traces and internal details never exposed.
+      show-details: never
+      probes:
+        # Enables /actuator/health/liveness and /actuator/health/readiness.
+        # CONTROL: INI-20
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  # Prometheus metrics export.
+  # CONTROL: INI-18
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  # OpenTelemetry tracing — sampling probability.
+  # OTEL_EXPORTER_OTLP_ENDPOINT env var configures the OTLP HTTP collector.
+  # If the exporter cannot connect, the service starts normally (graceful
+  # degradation — AC INI-21).
+  # CONTROL: INI-19 | INI-21
+  tracing:
+    sampling:
+      # Sample 100% of requests in this template; tune for production.
+      probability: 1.0
+
+# ---------------------------------------------------------------------------
+# Server configuration
+# ---------------------------------------------------------------------------
+server:
+  port: 8080
+  # Disable default error attribute "trace" to prevent stack trace leakage.
+  # CONTROL: RN-10 — stack traces never exposed in API responses.
+  error:
+    include-stacktrace: never
+    include-exception: false
+    include-message: never
+    include-binding-errors: never
+
+# ---------------------------------------------------------------------------
+# Logging
+#
+# Structured JSON logging is configured via shared-observability logback-spring.xml.
+# CONTROL: INI-16 — structured JSON log with all required fields per request.
+# CONTROL: INI-17 — audit trail for data modification actions.
+# ---------------------------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.securemicro: INFO
+    # Suppress verbose Spring Security internal debug logging in production.
+    org.springframework.security: WARN
+    # Suppress verbose Spring Cloud Vault internal logging in production.
+    org.springframework.cloud.vault: WARN
+
+# ---------------------------------------------------------------------------
+# SpringDoc OpenAPI
+# ---------------------------------------------------------------------------
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+# ---------------------------------------------------------------------------
+# Spring profiles note
+#
+# A "test" profile should set:
+#   spring.cloud.vault.enabled=false
+#   spring.config.import=   (empty or mock values)
+#
+# This allows integration tests to run without a live Vault instance while
+# preserving fail-fast behaviour in the default (production) profile.
+# ---------------------------------------------------------------------------
