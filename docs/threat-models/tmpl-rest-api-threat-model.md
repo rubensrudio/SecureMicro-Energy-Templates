@@ -3,7 +3,7 @@
 **Template:** tmpl-rest-api  
 **Versão:** 1.0.0  
 **Data:** 2026-05-17  
-**Status:** Aprovado — Phase 1  
+**Status:** Draft  
 **Requisito:** INI-29 (INI-US-06)  
 **Autor:** SecureMicro-Energy-Templates Platform Team  
 **Revisores:** Revisor AppSec (cargo), Engenheiro de Energia (operador)  
@@ -103,7 +103,7 @@ As trust boundaries definem os limites onde o nível de confiança muda entre co
 - Se Keycloak estiver indisponível em runtime, o serviço retorna HTTP 503 sem expor detalhes — CONTROL: RN-10
 - Credenciais do client Keycloak (client-secret) obtidas do Vault, não de env vars — CONTROL: RN-01, INI-10
 
-**Ameaça cruzando esta boundary:** Spoofing (Keycloak falso fornecendo JWKS maliciosos), Information Disclosure (tokens capturados em trânsito), Elevation of Privilege (claims manipulados).
+**Ameaça cruzando esta boundary:** Spoofing (Keycloak falso fornecendo JWKS maliciosos), Tampering (chaves JWKS substituídas em trânsito), Repudiation (eventos de autenticação não auditados no Keycloak), Information Disclosure (tokens capturados em trânsito), Denial of Service (Keycloak indisponível bloqueia autenticação), Elevation of Privilege (token forjado ou realm_access.roles adulterado eleva privilégios).
 
 ---
 
@@ -278,7 +278,7 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 |--------|---------|------------------------|---------|
 | Manipulação do payload JWT | Atacante altera claims do JWT (ex: role) sem invalidar a assinatura | Impossível sem a chave privada do Keycloak. A validação da assinatura detecta qualquer alteração no payload | INI-07 |
 | Injeção em body da requisição | Atacante envia payload malicioso (JSON injection, oversized payload) | `shared-controls`: validação de input via Bean Validation (`@Valid`), limite de tamanho no WebFlux | INI-04 |
-| Manipulação de headers HTTP | Atacante injeta headers para manipular comportamento do serviço | SecurityHeadersFilter sobrescreve headers de segurança na resposta, independente do que o cliente enviar | shared-controls |
+| Manipulação de headers HTTP | Atacante injeta headers para manipular comportamento do serviço | SecurityHeadersFilter sobrescreve headers de segurança na resposta, independente do que o cliente enviar | INI-07 |
 
 #### R — Repudiation (Negação)
 
@@ -292,7 +292,7 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 | Ameaça | Cenário | Mitigação implementada | CONTROL |
 |--------|---------|------------------------|---------|
 | Stack trace em resposta de erro | Erro interno expõe stack trace com detalhes do framework/versão | `GlobalExceptionHandler` captura todas as exceções e retorna body genérico sem stack trace | RN-10 |
-| Versão do framework em headers | Header `X-Powered-By` ou `Server` expõe versão do Spring | SecurityHeadersFilter remove/sobrescreve esses headers | shared-controls |
+| Versão do framework em headers | Header `X-Powered-By` ou `Server` expõe versão do Spring | SecurityHeadersFilter remove/sobrescreve esses headers | INI-07 |
 | Informação de timing em 401 vs 403 | Tempo de resposta diferente entre token inválido e role insuficiente vaza informação | Ambos retornam imediatamente após validação do JWT; latência uniforme | INI-07 |
 | Dados sensíveis em logs de requisição | Subject do token ou dados do body expostos em logs | Log registra apenas `auth.subject` (identificador, não dados pessoais adicionais) e metadados HTTP | INI-16 |
 
@@ -301,7 +301,7 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 | Ameaça | Cenário | Mitigação implementada | CONTROL |
 |--------|---------|------------------------|---------|
 | Flood de requisições não autenticadas | Atacante envia milhares de requisições sem token para esgotar recursos | Rate limiting delegado ao ingress/API gateway (fora do escopo do serviço). Liveness/readiness probes permitem que Kubernetes isole o pod degradado | INI-20 |
-| Payload oversized | Atacante envia body de 100MB para esgotar memória | Limite de tamanho configurado no WebFlux (`spring.webflux.codec.max-in-memory-size`) | shared-controls |
+| Payload oversized | Atacante envia body de 100MB para esgotar memória | Limite de tamanho configurado no WebFlux (`spring.webflux.codec.max-in-memory-size`) | INI-04 |
 | JWKS unavailability | Keycloak indisponível impede validação de tokens | Cache de JWKS em memória (Spring Security) permite validar tokens por um período sem JWKS disponível | INI-07 |
 
 #### E — Elevation of Privilege (Elevação de privilégio)
@@ -341,6 +341,25 @@ A análise STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Den
 | Ameaça | Cenário | Mitigação implementada | CONTROL |
 |--------|---------|------------------------|---------|
 | Keycloak indisponível em runtime | IDP fora do ar impede qualquer autenticação | Cache de JWKS mantém validação funcionando temporariamente. Serviço retorna HTTP 503 com body genérico enquanto IDP inacessível | INI-07, RN-10 |
+
+#### R — Repudiation (Negação)
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| Negar tentativas de autenticação | Atacante nega ter tentado autenticar-se; ausência de logs no Keycloak torna impossível auditar eventos de login | Keycloak deve ter audit logging habilitado no realm (event listeners: `jboss-logging`, `sysout`). Eventos de login, falha de autenticação e emissão de token registrados de forma auditável e imutável no aggregador de logs | INI-17, NIST AU-2 |
+| Ausência de rastreabilidade de token emitido | Não é possível correlacionar um token JWT em uso com o evento de emissão no Keycloak | `jti` (JWT ID) presente no token permite cruzar evento de emissão no Keycloak com uso do token no serviço via logs estruturados | INI-16 |
+
+**Risco residual:** O logging de eventos do Keycloak é responsabilidade do operador que configura o realm. O template documenta o requisito mas não pode impor a configuração do IDP externo.
+
+#### E — Elevation of Privilege (Elevação de privilégio)
+
+| Ameaça | Cenário | Mitigação implementada | CONTROL |
+|--------|---------|------------------------|---------|
+| Token com `realm_access.roles` adulterado | Atacante modifica o claim de roles no payload do JWT para incluir `ROLE_SERVICE_ADMIN` sem ter a permissão | Impossível sem comprometer a chave privada do Keycloak. A validação de assinatura RSA (INI-07) detecta qualquer alteração no payload do token | INI-07 |
+| Token forjado com roles elevadas | Atacante cria JWT sintético com claims de admin apontando para o realm correto | A validação do JWKS garante que apenas tokens assinados pela chave privada do Keycloak são aceitos. Tokens forjados falham na verificação de assinatura (HTTP 401) | INI-07 |
+| Comprometimento de client-secret eleva acesso | Client-secret vazado permite que atacante obtenha tokens válidos em nome de usuários | Client-secret obtido exclusivamente do Vault (não de env vars ou application.yml). TTL curto e renovação automática limitam janela de exposição | RN-01, INI-10 |
+
+**Risco residual:** Um comprometimento total da chave privada RSA do Keycloak permitiria forjar tokens com qualquer role. Esse cenário é tratado como OOS-05 (comprometimento do Keycloak em si é responsabilidade do operador).
 
 ---
 
