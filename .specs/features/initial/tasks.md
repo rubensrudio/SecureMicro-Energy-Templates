@@ -540,6 +540,7 @@
   - `docs/quickstart/tmpl-rest-api-quickstart.md`
 - **Descrição**: Executar e validar o fluxo completo de quickstart conforme critérios de aceite técnicos 1–12 do plano seção 10: (1) `docker compose up -d` → todos os serviços healthy; (2) `curl` no Keycloak para obter token JWT; (3) `curl` nos endpoints autenticados com as respostas esperadas; (4) verificar log JSON estruturado no stdout do container; (5) `curl /actuator/prometheus` retorna métricas com prefixos `http_server_requests` e `jvm_`; (6) Jaeger UI em `localhost:16686` exibe traces; (7) `trufflehog filesystem .` → zero findings no repositório completo. Documentar o tempo total medido no guia de quickstart.
 - **Critério de verificação**: Todos os 12 critérios de aceite técnicos do plano seção 10 verificados manualmente e documentados. Tempo total do quickstart ≤ 30 minutos com imagens pré-baixadas (AC INI-31). `trufflehog` retorna zero findings.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-029 (bug fix sme-cli/templates.py + 9/12 ACs verificados; 3 NOT_TESTED requerem Docker)
 
 ---
 
