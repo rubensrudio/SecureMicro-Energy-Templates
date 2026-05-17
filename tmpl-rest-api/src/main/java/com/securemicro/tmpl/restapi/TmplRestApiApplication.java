@@ -2,6 +2,7 @@ package com.securemicro.tmpl.restapi;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 
 /**
  * Entry point for the SecureMicro Template REST API.
@@ -80,7 +81,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 // CONTROL: RN-01
 // CONTROL: RN-02
 // CONTROL: RN-10
+// CONTROL: INI-05 — @EnableReactiveMethodSecurity enables @PreAuthorize role enforcement
 @SpringBootApplication
+@EnableReactiveMethodSecurity
 public class TmplRestApiApplication {
 
     /**

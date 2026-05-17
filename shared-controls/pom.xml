@@ -54,6 +54,23 @@
         </dependency>
 
         <!-- ============================================================
+             Spring Security Core — optional dependency that makes
+             AccessDeniedException available to GlobalExceptionHandler.
+             Without this, the @ControllerAdvice catches AccessDeniedException
+             as a generic RuntimeException and returns HTTP 500 instead of
+             delegating to Spring Security's ServerAccessDeniedHandler (HTTP 403).
+             Optional=true so consuming modules that don't use Spring Security
+             are not forced to pull it transitively.
+             CONTROL: INI-05 — ensures HTTP 403 (not 500) for role violations.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+            <optional>true</optional>
+            <!-- version managed by parent spring-security-bom via spring-boot-dependencies -->
+        </dependency>
+
+        <!-- ============================================================
              Spring Boot Autoconfigure — required for @AutoConfiguration,
              @ConditionalOnMissingBean and AutoConfigurationImportSelector
              on the classpath.
