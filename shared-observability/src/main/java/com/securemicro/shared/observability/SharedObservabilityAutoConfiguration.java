@@ -68,22 +68,6 @@ import org.springframework.web.server.WebFilter;
 public class SharedObservabilityAutoConfiguration {
 
     /**
-     * Exposes the {@link ObservabilityProperties} configuration bean.
-     *
-     * <p>The {@code @ConditionalOnMissingBean} guard allows individual services
-     * to override the default properties by declaring their own
-     * {@code ObservabilityProperties} bean — consistent with the Spring Boot
-     * auto-configuration contract.
-     *
-     * @return a default {@link ObservabilityProperties} instance
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public ObservabilityProperties observabilityProperties() {
-        return new ObservabilityProperties();
-    }
-
-    /**
      * Declares the {@link AuditTrailService} as a Spring-managed bean.
      *
      * <p>The {@code @ConditionalOnMissingBean} guard lets consuming services
