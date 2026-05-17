@@ -100,12 +100,18 @@ services:
     volumes:
       # Persistent volume for Keycloak data (themes, sessions, etc.)
       - keycloak-data:/opt/keycloak/data
-      # Bind-mount the realm export file read-only into the Keycloak import directory.
-      # Keycloak reads all *.json files from /opt/keycloak/data/import/ on startup
-      # when --import-realm is specified in the command above.
+      # Bind-mount the keycloak/ directory read-only as /opt/keycloak/data/import/.
+      # Docker mounts the host directory (./keycloak/) onto the container path even
+      # when that path does not pre-exist in the image, guaranteeing that
+      # realm-export.json is present as a regular file for DirImportProvider.
+      # Mounting the file directly (file-level bind-mount) causes Docker to create
+      # the parent directory as a directory entry, silently turning realm-export.json
+      # into an empty directory inside the container — this directory-level mount
+      # avoids that silent failure.
       # CONTROL: INI-09 — MFA TOTP realm is activated via this import.
+      # CONTROL: RN-01 — imported realm contains no real secret values.
       # CONTROL: RN-02 — OIDC realm (tmpl-rest-api) is provisioned automatically.
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak:/opt/keycloak/data/import:ro
     healthcheck:
       test:
         - CMD-SHELL

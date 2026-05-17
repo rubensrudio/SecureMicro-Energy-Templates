@@ -1,11 +1,4 @@
 {
-  "_comment": "DEV MODE ONLY — This realm export is provided exclusively for local development and quickstart validation. It MUST NOT be imported into any shared, staging, or production environment without a security review and secret rotation. The client secret placeholder '${VAULT_MANAGED}' is an operational instruction: the actual secret must be provisioned by HashiCorp Vault (KV v2 path: secret/tmpl-rest-api/keycloak). See reference-deploy/vault/vault-dev-init.sh for dev seed values.",
-  "_control": {
-    "controls": ["CONTROL: INI-09", "CONTROL: RN-01", "CONTROL: RN-02"],
-    "INI-09": "MFA TOTP made mandatory via otpPolicyType=totp and CONFIGURE_TOTP default required action with browserFlow=browser-with-otp",
-    "RN-01": "No real secret values in this file. client.secret field holds the placeholder '${VAULT_MANAGED}' — an operational instruction, not a credential",
-    "RN-02": "Keycloak OIDC realm configured as the identity provider for tmpl-rest-api JWT validation with MFA enabled"
-  },
   "realm": "tmpl-rest-api",
   "displayName": "SecureMicro Energy — tmpl-rest-api (DEV MODE ONLY)",
   "enabled": true,
