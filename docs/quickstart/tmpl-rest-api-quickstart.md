@@ -35,6 +35,7 @@ Verifique cada item antes de começar:
 | Docker Compose plugin | v2.20+ | `docker compose version` |
 | git | qualquer | `git --version` |
 | curl | qualquer | `curl --version` |
+| jq | 1.6+ | `jq --version` (opcional — comandos curl funcionam sem jq; ver nota abaixo) |
 | Java 17 | 17+ | `java -version` (apenas para build local) |
 
 ### Verificar pré-requisitos
@@ -279,14 +280,14 @@ curl -s http://localhost:8080/actuator/health | jq .
 ```bash
 curl -s \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/health \
+  http://localhost:8080/api/v1/hello \
   | jq .
 ```
 
 **Output esperado:**
 ```json
 {
-  "status": "UP"
+  "message": "Hello from tmpl-rest-api"
 }
 ```
 
