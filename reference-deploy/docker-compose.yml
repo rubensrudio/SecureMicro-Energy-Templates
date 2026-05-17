@@ -1,0 +1,287 @@
+# =============================================================================
+# reference-deploy/docker-compose.yml
+#
+# WARNING: DEV MODE ONLY — NOT FOR PRODUCTION
+#
+# This Compose file is provided exclusively for local development and quickstart
+# validation.  It intentionally uses Vault dev mode (root token), Keycloak with
+# an in-memory H2 database, and plain HTTP — none of which are acceptable in
+# production environments.
+#
+# For production deployment guidance, refer to:
+#   - docs/quickstart/tmpl-rest-api-quickstart.md  (production checklist section)
+#   - tmpl-rest-api/control-mapping.md             (operational controls)
+#   - PRD_SecureMicro-Energy-Templates.md          (architecture decisions)
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f tmpl-rest-api
+#   docker compose down -v
+#
+# CONTROL: RN-01 — zero real secrets in this file; all values are
+#   dev-placeholder-not-for-production or point to the Vault dev token
+#   (token=root is the HashiCorp Vault dev-mode default — never use in prod).
+# CONTROL: RN-02 — Keycloak is the OIDC provider for tmpl-rest-api JWT
+#   validation with MFA enabled (see keycloak/realm-export.json).
+# =============================================================================
+
+name: securemicro-reference-deploy
+
+# ---------------------------------------------------------------------------
+# Shared network — services communicate by service name (DNS)
+# ---------------------------------------------------------------------------
+networks:
+  securemicro-net:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Named volumes — scoped to this Compose project
+# ---------------------------------------------------------------------------
+volumes:
+  keycloak-data:
+  vault-data:
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------------------
+  # Keycloak 24.x — Identity Provider (OIDC / JWT)
+  #
+  # WARNING: DEV MODE ONLY — NOT FOR PRODUCTION
+  #   - Uses embedded H2 database (data is not persisted across container restarts
+  #     unless the volume is preserved)
+  #   - KC_HTTP_ENABLED=true and plain HTTP are acceptable only in local dev
+  #   - Admin credentials below are placeholders — rotate before any shared env
+  #
+  # Port mapping: 8180 (host) → 8080 (container)
+  #   Port 8180 is chosen on the host to avoid collision with tmpl-rest-api:8080.
+  #
+  # Realm import: realm-export.json is bind-mounted read-only into
+  #   /opt/keycloak/data/import/ and loaded at startup via --import-realm.
+  #   This activates CONTROL: INI-09 (MFA TOTP) and CONTROL: RN-02 (OIDC realm).
+  #
+  # CONTROL: RN-01 — no real admin password; placeholder value only.
+  # CONTROL: RN-02 — Keycloak is the OIDC provider for tmpl-rest-api JWT validation.
+  # CONTROL: INI-09 — Keycloak realm is pre-configured with MFA (TOTP) via
+  #   realm-export.json imported at startup (otpPolicyType: totp, CONFIGURE_TOTP
+  #   required action, browserFlow: browser-with-otp).
+  #   See reference-deploy/keycloak/realm-export.json.
+  # ---------------------------------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.4
+    container_name: securemicro-keycloak
+    # WARNING: DEV MODE ONLY — start-dev disables TLS and uses H2 in-memory DB
+    # --import-realm: instructs Keycloak to import any realm JSON files found in
+    #   /opt/keycloak/data/import/ at startup. The realm-export.json is bind-mounted
+    #   into that path (see volumes below). CONTROL: INI-09 — activates MFA TOTP realm.
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      # CONTROL: RN-01 — placeholder credentials; NEVER use these in production
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      # WARNING: DEV MODE ONLY — replace with a strong password in any shared environment
+      KC_BOOTSTRAP_ADMIN_PASSWORD: dev-placeholder-not-for-production
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_PORT: "8080"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_DB: dev-mem
+      KC_LOG_LEVEL: INFO
+    ports:
+      # 8180 on host avoids collision with tmpl-rest-api which listens on 8080
+      - "8180:8080"
+    networks:
+      - securemicro-net
+    volumes:
+      # Persistent volume for Keycloak data (themes, sessions, etc.)
+      - keycloak-data:/opt/keycloak/data
+      # Bind-mount the realm export file read-only into the Keycloak import directory.
+      # Keycloak reads all *.json files from /opt/keycloak/data/import/ on startup
+      # when --import-realm is specified in the command above.
+      # CONTROL: INI-09 — MFA TOTP realm is activated via this import.
+      # CONTROL: RN-02 — OIDC realm (tmpl-rest-api) is provisioned automatically.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          wget -qO- http://localhost:8080/health/ready 2>/dev/null
+          | grep -q '"status": "UP"' || exit 1
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # HashiCorp Vault 1.17.x — Secrets Management
+  #
+  # WARNING: DEV MODE ONLY — NOT FOR PRODUCTION
+  #   - Vault dev mode stores all data in memory; secrets are LOST on restart
+  #   - Root token "root" is the dev-mode default — NEVER use in production
+  #   - dev mode disables TLS and uses an in-memory backend (no persistence)
+  #   - For production: use Vault in HA mode with TLS, AppRole auth, and audit logging
+  #
+  # Port mapping: 8200 (host) → 8200 (container)
+  #
+  # CONTROL: RN-01 — VAULT_DEV_ROOT_TOKEN_ID is a dev placeholder only.
+  # ---------------------------------------------------------------------------
+  vault:
+    image: hashicorp/vault:1.17.5
+    container_name: securemicro-vault
+    # WARNING: DEV MODE ONLY — -dev flag enables in-memory Vault with no TLS
+    command: server -dev -dev-root-token-id=root -dev-listen-address=0.0.0.0:8200
+    environment:
+      # CONTROL: RN-01 — root token is acceptable ONLY in Vault dev mode (local dev)
+      # WARNING: DEV MODE ONLY — the token "root" must NEVER be used in production
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_LOG_LEVEL: info
+    ports:
+      - "8200:8200"
+    networks:
+      - securemicro-net
+    volumes:
+      - vault-data:/vault/data
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test:
+        - CMD
+        - vault
+        - status
+        - -address=http://127.0.0.1:8200
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Jaeger 1.57 — OpenTelemetry Collector + Distributed Tracing UI
+  #
+  # Receives traces from tmpl-rest-api via OTLP (gRPC port 4317).
+  # Jaeger UI is accessible at http://localhost:16686.
+  #
+  # No credentials required in dev mode — Jaeger accepts traces without auth.
+  #
+  # CONTROL: INI-19 — OTel trace collector for W3C TraceContext validation
+  #   during quickstart (plan premise P-05).
+  # ---------------------------------------------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: securemicro-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      LOG_LEVEL: info
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP gRPC — tmpl-rest-api sends traces here
+      - "4317:4317"
+      # OTLP HTTP (optional, for HTTP-based exporters)
+      - "4318:4318"
+    networks:
+      - securemicro-net
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:14269/health 2>/dev/null | grep -q '"status":"Server available"' || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # tmpl-rest-api — Spring Boot WebFlux service (SecureMicro reference template)
+  #
+  # WARNING: DEV MODE ONLY — NOT FOR PRODUCTION
+  #   - VAULT_TOKEN=root is the dev Vault token — replace with AppRole in prod
+  #   - KEYCLOAK_ISSUER_URI points to the local Keycloak container by service name
+  #   - All env var values below are dev placeholders only
+  #
+  # Depends on keycloak and vault being healthy before starting — guarantees
+  # that Vault secrets can be resolved at startup (fail-fast behaviour).
+  #
+  # Port mapping: 8080 (host) → 8080 (container)
+  #
+  # CONTROL: RN-01 — all secret-like env vars hold dev placeholder values only.
+  # CONTROL: RN-02 — KEYCLOAK_ISSUER_URI wires the service to the OIDC provider.
+  # CONTROL: INI-19 — OTEL_EXPORTER_OTLP_ENDPOINT points to the Jaeger collector.
+  # ---------------------------------------------------------------------------
+  tmpl-rest-api:
+    image: securemicro/tmpl-rest-api:latest
+    container_name: securemicro-tmpl-rest-api
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    environment:
+      # -----------------------------------------------------------------------
+      # Keycloak — OIDC issuer URI
+      #
+      # Points to the keycloak service by Docker DNS name.
+      # AC INI-06: value comes from env var — never hardcoded in config files.
+      #
+      # CONTROL: RN-01 — env var reference; no literal issuer URL in code.
+      # CONTROL: RN-02 — wires JWT validation to the local Keycloak realm.
+      # -----------------------------------------------------------------------
+      # CONTROL: RN-01
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/tmpl-rest-api
+
+      # -----------------------------------------------------------------------
+      # JWT audience claim
+      #
+      # Must match the "aud" claim in tokens issued by Keycloak for this client.
+      # Default value for the reference realm: tmpl-rest-api
+      #
+      # CONTROL: RN-01 — non-secret configuration value; safe to commit.
+      # -----------------------------------------------------------------------
+      JWT_AUDIENCE: tmpl-rest-api
+
+      # -----------------------------------------------------------------------
+      # Vault — address and token
+      #
+      # VAULT_ADDR: full URL of the Vault server (service name resolves in Docker)
+      # VAULT_TOKEN: root token is the Vault dev-mode default
+      #
+      # WARNING: DEV MODE ONLY — the root token must NEVER be used in production.
+      # For production, configure AppRole auth and use a short-lived token.
+      #
+      # CONTROL: RN-01 — "root" is a dev placeholder, not a real production secret.
+      # -----------------------------------------------------------------------
+      # CONTROL: RN-01
+      VAULT_ADDR: http://vault:8200
+      # WARNING: DEV MODE ONLY — Vault root token; replace with AppRole in prod
+      VAULT_TOKEN: root
+
+      # -----------------------------------------------------------------------
+      # OpenTelemetry exporter
+      #
+      # Points to the Jaeger OTLP gRPC collector by Docker DNS name.
+      # CONTROL: INI-19 — W3C TraceContext propagation to downstream services.
+      # CONTROL: INI-21 — if Jaeger is unreachable, service starts normally.
+      # -----------------------------------------------------------------------
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_SERVICE_NAME: tmpl-rest-api
+      OTEL_TRACES_EXPORTER: otlp
+    ports:
+      - "8080:8080"
+    networks:
+      - securemicro-net
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"' || exit 1
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
