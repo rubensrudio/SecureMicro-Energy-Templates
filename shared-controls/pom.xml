@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================
+         shared-controls — reusable security controls library
+         Inherits version management from the root BOM.
+         CONTROL: RN-10 | INI-04 (see tmpl-rest-api/control-mapping.md)
+         ================================================================ -->
+
+    <parent>
+        <groupId>com.securemicro</groupId>
+        <artifactId>secure-micro-energy-templates</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>shared-controls</artifactId>
+    <packaging>jar</packaging>
+    <name>SecureMicro :: Shared Controls</name>
+    <description>
+        Reusable security controls: HTTP security headers, global exception
+        handling without stack trace exposure, and input validation utilities.
+        Implements CONTROL: RN-10, INI-04 (see control-mapping.md).
+        Phase 1 — implementation in TASK-003 / TASK-004.
+    </description>
+
+    <dependencies>
+
+        <!-- ============================================================
+             Spring Boot Starter WebFlux — provides the reactive HTTP
+             stack (Netty + WebFlux) used by all services in this repo.
+             SecurityHeadersFilter implements WebFilter (reactive contract).
+             CONTROL: RN-10 — security headers injected via WebFilter.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <!-- version managed by parent BOM (spring-boot.version) -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Starter Validation — Jakarta Bean Validation
+             (Hibernate Validator) for @Valid / @Validated support.
+             CONTROL: RN-10 — input validation prevents injection attacks.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Security Core — optional dependency that makes
+             AccessDeniedException available to GlobalExceptionHandler.
+             Without this, the @ControllerAdvice catches AccessDeniedException
+             as a generic RuntimeException and returns HTTP 500 instead of
+             delegating to Spring Security's ServerAccessDeniedHandler (HTTP 403).
+             Optional=true so consuming modules that don't use Spring Security
+             are not forced to pull it transitively.
+             CONTROL: INI-05 — ensures HTTP 403 (not 500) for role violations.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+            <optional>true</optional>
+            <!-- version managed by parent spring-security-bom via spring-boot-dependencies -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Autoconfigure — required for @AutoConfiguration,
+             @ConditionalOnMissingBean and AutoConfigurationImportSelector
+             on the classpath.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Test — unit and slice test support (@WebFluxTest,
+             WebTestClient, reactor-test). Scope: test only.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+</project>

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================
+         shared-observability — structured logging, metrics and tracing
+         Inherits version management from the root BOM.
+         CONTROL: INI-16 | INI-17 | INI-18 | INI-19 | INI-21
+         ================================================================ -->
+
+    <parent>
+        <groupId>com.securemicro</groupId>
+        <artifactId>secure-micro-energy-templates</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>shared-observability</artifactId>
+    <packaging>jar</packaging>
+    <name>SecureMicro :: Shared Observability</name>
+    <description>
+        Structured JSON logging (Logstash Logback Encoder), Micrometer/Prometheus
+        metrics, and OpenTelemetry trace propagation (W3C TraceContext).
+        Implements CONTROL: INI-16, INI-17, INI-18, INI-19, INI-21.
+        Phase 1 — implementation in TASK-005 / TASK-006 / TASK-007 / TASK-008.
+    </description>
+
+    <dependencies>
+
+        <!-- ============================================================
+             Spring Boot Starter Actuator — exposes /actuator/health,
+             /actuator/health/liveness, /actuator/health/readiness, and
+             /actuator/prometheus endpoints.
+             CONTROL: RN-05 | INI-18 | INI-20
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <!-- version managed by parent BOM (spring-boot.version) -->
+        </dependency>
+
+        <!-- ============================================================
+             Micrometer Prometheus Registry — exposes Micrometer metrics
+             in Prometheus text format at /actuator/prometheus.
+             CONTROL: INI-18
+             io.micrometer:micrometer-registry-prometheus is the correct
+             artifact for Spring Boot 3.x (replaces the legacy
+             io.micrometer:micrometer-registry-prometheus artifact from
+             Micrometer 1.x which used a different group).
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Logstash Logback Encoder — encodes log events as structured
+             JSON with all fields defined in plan section 4.3.
+             CONTROL: INI-16 | INI-17
+             Version pinned in root POM property: logstash-logback-encoder.version=7.4
+             ============================================================ -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>${logstash-logback-encoder.version}</version>
+        </dependency>
+
+        <!-- ============================================================
+             OpenTelemetry Spring Boot Starter — auto-instruments the
+             Spring WebFlux stack and propagates W3C TraceContext to
+             downstream services.
+             CONTROL: INI-19 | INI-21
+             Graceful degradation: if the OTLP exporter cannot reach its
+             endpoint, the SDK falls back to a no-op exporter and the
+             application context starts normally — boot does NOT fail.
+             This is the default behaviour of the OTel SDK; no special
+             configuration is required here to achieve AC INI-21.
+             Version pinned in root POM property: opentelemetry-spring-boot.version=2.14.0
+             ============================================================ -->
+        <dependency>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-spring-boot-starter</artifactId>
+            <version>${opentelemetry-spring-boot.version}</version>
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Autoconfigure — required for @AutoConfiguration
+             and condition annotations on the classpath.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot WebFlux — provides WebFilter, ServerWebExchange,
+             and the reactive HTTP stack required by RequestLoggingFilter.
+             CONTROL: INI-16
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Security Web + OAuth2 Resource Server — provides
+             ReactiveSecurityContextHolder and JwtAuthenticationToken
+             used by RequestLoggingFilter to extract auth.subject.
+             CONTROL: INI-16
+             Version managed by parent spring-boot-dependencies BOM.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+        <!-- ============================================================
+             Spring Boot Test — unit and slice test support.
+             Scope: test only — not shipped in the published JAR.
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ============================================================
+             Reactor Test — StepVerifier and test utilities for Project
+             Reactor pipelines used in RequestLoggingFilterTest.
+             Scope: test only.
+             ============================================================ -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+            <!-- version managed by parent BOM -->
+        </dependency>
+
+    </dependencies>
+
+</project>

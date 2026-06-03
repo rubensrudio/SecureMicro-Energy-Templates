@@ -1,0 +1,23 @@
+# Test application properties for shared-secrets module.
+# Vault is disabled by default in tests — individual tests that require
+# Vault connectivity use WireMock and pass their own properties programmatically.
+# CONTROL: RN-01 — no literal secret values in any test resource file.
+
+spring:
+  application:
+    name: shared-secrets-test
+  cloud:
+    vault:
+      # Vault is disabled by default in the test classpath.
+      # VaultBootstrapConfigurationEnabledTest overrides this via the
+      # application-vault-wiremock.yml profile to enable WireMock-backed Vault.
+      # VaultBootstrapConfigurationDisabledTest relies on this default (false).
+      # VaultFailFastTest overrides via run() args after starting a fresh context.
+      enabled: false
+  main:
+    web-application-type: none
+
+logging:
+  level:
+    com.securemicro: DEBUG
+    org.springframework.cloud.vault: DEBUG

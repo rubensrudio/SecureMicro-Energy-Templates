@@ -1,0 +1,164 @@
+# =============================================================================
+# SecureMicro-Energy-Templates — .gitignore
+# =============================================================================
+# SECURITY: This file is the first line of defense against accidentally
+# committing secrets, build artifacts, or IDE noise to the repository.
+# Rules are grouped and annotated so reviewers can verify coverage.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SECRETS — never commit credentials, tokens, or key material
+# CONTROL: RN-01 | INI-11
+# EO 14028 Section 4(e): agencies shall employ zero-secrets-in-config.
+# -----------------------------------------------------------------------------
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+.env
+.env.*
+!.env.example
+vault-token
+vault-token.txt
+*.vault-token
+application-local.yml
+application-local.yaml
+application-prod.yml
+application-prod.yaml
+*-credentials.json
+*-credentials.yml
+*-credentials.yaml
+keycloak-client-secret.txt
+
+# -----------------------------------------------------------------------------
+# MAVEN BUILD OUTPUT — target/ directories at any depth
+# -----------------------------------------------------------------------------
+**/target/
+!**/target/.gitkeep
+
+# Maven wrapper cache
+.mvn/repository/
+
+# Maven local settings overrides (may contain mirror credentials)
+.mvn/local-settings.xml
+
+# -----------------------------------------------------------------------------
+# GRADLE (not used in this project, but included defensively for contributors
+# who may have Gradle caches nearby)
+# -----------------------------------------------------------------------------
+.gradle/
+/build/
+!**/src/**/build/
+!**/src/**/build/**
+
+# -----------------------------------------------------------------------------
+# IDE — IntelliJ IDEA
+# -----------------------------------------------------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+!**/src/**/*.iml
+
+# -----------------------------------------------------------------------------
+# IDE — Eclipse / Spring Tool Suite
+# -----------------------------------------------------------------------------
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+bin/
+
+# -----------------------------------------------------------------------------
+# IDE — VS Code
+# -----------------------------------------------------------------------------
+.vscode/
+*.code-workspace
+
+# -----------------------------------------------------------------------------
+# IDE — NetBeans
+# -----------------------------------------------------------------------------
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# -----------------------------------------------------------------------------
+# OS ARTIFACTS
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# -----------------------------------------------------------------------------
+# DOCKER — local overrides and generated compose state
+# -----------------------------------------------------------------------------
+docker-compose.override.yml
+.docker/
+
+# -----------------------------------------------------------------------------
+# PYTHON (sme-cli)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+sme-cli/.venv/
+sme-cli/venv/
+sme-cli/env/
+sme-cli/*.egg-info/
+sme-cli/dist/
+sme-cli/build/
+sme-cli/.pytest_cache/
+sme-cli/.mypy_cache/
+sme-cli/.ruff_cache/
+sme-cli/htmlcov/
+sme-cli/.coverage
+sme-cli/coverage.xml
+
+# -----------------------------------------------------------------------------
+# LOGS — never commit log files
+# -----------------------------------------------------------------------------
+*.log
+logs/
+log/
+
+# -----------------------------------------------------------------------------
+# TEMPORARY / GENERATED FILES
+# -----------------------------------------------------------------------------
+*.tmp
+*.bak
+*.swp
+*.orig
+*.rej
+.cache/
+
+# IDE/tool artifacts
+.claude/
+org/
+
+.github/
+.specs/
+docs/

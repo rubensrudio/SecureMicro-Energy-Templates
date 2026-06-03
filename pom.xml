@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================
+         SecureMicro-Energy-Templates — Multi-Module Maven POM (root)
+         GroupId   : com.securemicro
+         Version   : 0.1.0-SNAPSHOT
+         Purpose   : Declares all child modules and manages dependency
+                     versions via Spring Boot 3.3.x and Spring Cloud
+                     2023.x BOMs.  No application code lives here.
+         ================================================================ -->
+
+    <groupId>com.securemicro</groupId>
+    <artifactId>secure-micro-energy-templates</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>SecureMicro Energy Templates</name>
+    <description>
+        Production-grade microservice templates for the US energy sector,
+        aligned with EO 14028, NIST SP 800-53 and CISA guidance.
+    </description>
+
+    <!-- ================================================================
+         Module declarations — order matters for reactor build sequence.
+         Shared libraries must be built before the templates that depend
+         on them.
+         ================================================================ -->
+    <modules>
+        <module>shared-controls</module>
+        <module>shared-observability</module>
+        <module>shared-identity</module>
+        <module>shared-secrets</module>
+        <module>tmpl-rest-api</module>
+    </modules>
+
+    <!-- ================================================================
+         Properties
+         ================================================================ -->
+    <properties>
+        <!-- Java release compatibility: uses the release flag instead of
+             source/target to restrict the bootclasspath to Java 17 API. -->
+        <java.version>17</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Reproducible builds — timestamp pinned at project inception.
+             Override via -Dproject.build.outputTimestamp=<ISO8601> in CI. -->
+        <project.build.outputTimestamp>2026-05-16T00:00:00Z</project.build.outputTimestamp>
+
+        <!-- BOM versions -->
+        <spring-boot.version>3.3.11</spring-boot.version>
+        <spring-cloud.version>2023.0.5</spring-cloud.version>
+
+        <!-- Third-party library versions managed here so child POMs
+             need only declare groupId + artifactId. -->
+        <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
+        <opentelemetry-spring-boot.version>2.14.0</opentelemetry-spring-boot.version>
+        <cyclonedx-maven-plugin.version>2.9.1</cyclonedx-maven-plugin.version>
+        <!-- SpringDoc 2.6.x is the last series compatible with Spring Boot 3.3.x
+             (Spring Framework 6.1.x). SpringDoc 2.7+ requires Spring Framework 6.2
+             (LiteWebJarsResourceResolver), which ships with Spring Boot 3.4+. -->
+        <springdoc-openapi.version>2.6.0</springdoc-openapi.version>
+        <wiremock.version>3.13.0</wiremock.version>
+        <jib-maven-plugin.version>3.4.5</jib-maven-plugin.version>
+    </properties>
+
+    <!-- ================================================================
+         Dependency Management — BOM imports guarantee version alignment
+         across all child modules without version literals in their POMs.
+         ================================================================ -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- Spring Boot BOM — manages spring-boot-*, spring-security-*,
+                 micrometer-*, logback-*, jackson-*, etc. -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Cloud BOM — manages spring-cloud-vault-config,
+                 spring-cloud-starter-*, etc. -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- OpenTelemetry Spring Boot starter (outside Spring BOM) -->
+            <dependency>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-spring-boot-starter</artifactId>
+                <version>${opentelemetry-spring-boot.version}</version>
+            </dependency>
+
+            <!-- Logstash Logback Encoder — structured JSON logging -->
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-logback-encoder.version}</version>
+            </dependency>
+
+            <!-- SpringDoc OpenAPI (WebFlux variant) -->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+                <version>${springdoc-openapi.version}</version>
+            </dependency>
+
+            <!-- WireMock — test doubles for external HTTP services -->
+            <dependency>
+                <groupId>org.wiremock</groupId>
+                <artifactId>wiremock-standalone</artifactId>
+                <version>${wiremock.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Internal modules — declared here so child POMs reference
+                 them without repeating the groupId / version. -->
+            <dependency>
+                <groupId>com.securemicro</groupId>
+                <artifactId>shared-controls</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.securemicro</groupId>
+                <artifactId>shared-observability</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.securemicro</groupId>
+                <artifactId>shared-identity</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.securemicro</groupId>
+                <artifactId>shared-secrets</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- ================================================================
+         Plugin Management — version-pins for plugins used across modules.
+         ================================================================ -->
+    <build>
+        <pluginManagement>
+            <plugins>
+
+                <!-- Spring Boot Maven Plugin — repackage executable JARs -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                </plugin>
+
+                <!-- CycloneDX Maven Plugin — generates SBOM (CycloneDX format).
+                     CONTROL: RN-03 | INI-22
+                     Required by EO 14028 for software supply chain provenance. -->
+                <plugin>
+                    <groupId>org.cyclonedx</groupId>
+                    <artifactId>cyclonedx-maven-plugin</artifactId>
+                    <version>${cyclonedx-maven-plugin.version}</version>
+                </plugin>
+
+                <!-- Jib Maven Plugin — builds reproducible OCI images without
+                     a Docker daemon; pairs with project.build.outputTimestamp
+                     for deterministic digests.
+                     CONTROL: RN-09 | INI-24 -->
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>${jib-maven-plugin.version}</version>
+                </plugin>
+
+                <!-- Maven Compiler Plugin — enforce Java 17 target -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <configuration>
+                        <release>${java.version}</release>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                    </configuration>
+                </plugin>
+
+                <!-- Maven Surefire Plugin — unit tests -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.3</version>
+                </plugin>
+
+                <!-- Maven Failsafe Plugin — integration tests (*IT.java) -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>3.5.3</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>

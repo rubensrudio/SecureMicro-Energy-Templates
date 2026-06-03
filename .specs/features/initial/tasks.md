@@ -255,6 +255,7 @@
   - `tmpl-rest-api/src/main/java/com/securemicro/tmpl/restapi/TmplRestApiApplication.java`
 - **Descrição**: Criar `pom.xml` do `tmpl-rest-api` herdando do POM raiz e declarando dependências nos 4 módulos `shared-*`, `spring-boot-starter-webflux`, `spring-boot-starter-actuator`, `springdoc-openapi-starter-webflux-ui:2.x`. Criar `TmplRestApiApplication.java` com `@SpringBootApplication`. O módulo deve compilar e subir (mesmo sem Keycloak/Vault) — a integração com serviços externos é configurável via env vars.
 - **Critério de verificação**: `mvn -pl tmpl-rest-api compile` sem erros. Todos os módulos `shared-*` resolvidos como dependências Maven locais.
+- **Status**: ✅ APROVADA em 2026-05-16 — branch: feature/initial-TASK-013
 
 ---
 
@@ -272,6 +273,7 @@
   - `tmpl-rest-api/config/vault-paths.md`
 - **Descrição**: Criar `application.yml` com todas as configurações do serviço, onde nenhum valor de secret aparece em texto claro. Todos os secrets devem ser referenciados via `spring.config.import=vault://secret/tmpl-rest-api/...`. Configurar: `KEYCLOAK_ISSUER_URI` como env var placeholder, paths do Vault para `keycloak.client-secret`, `service.api-key`. Criar `vault-paths.md` documentando cada path de Vault com o secret correspondente (AC INI-14). Marcar comentários YAML com `# CONTROL: RN-01`. Executar `trufflehog filesystem .` no arquivo — zero findings.
 - **Critério de verificação**: `trufflehog filesystem tmpl-rest-api/config/application.yml` retorna zero findings. `vault-paths.md` contém os 3 paths documentados na seção 4.1 do plano.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-014
 
 ---
 
@@ -289,6 +291,7 @@
   - `tmpl-rest-api/src/main/java/com/securemicro/tmpl/restapi/api/HelloController.java`
 - **Descrição**: Implementar `ResourceController` com: `GET /api/v1/resources` protegido por `ROLE_SERVICE_USER` e `POST /api/v1/resources` protegido por `ROLE_SERVICE_ADMIN` (que injeta `AuditTrailService` e emite audit event na criação). Implementar `HelloController` com `GET /api/v1/hello` protegido por `ROLE_SERVICE_USER`. Todos os endpoints retornam dados placeholder. Marcar com `// CONTROL: INI-04`, `// CONTROL: INI-05`, `// CONTROL: INI-17`.
 - **Critério de verificação**: Testes unitários com `WebTestClient` mockando `SecurityContext`: (a) GET /api/v1/resources com role USER → 200; (b) POST /api/v1/resources com role ADMIN → 201 e audit log emitido; (c) GET /api/v1/hello com role USER → 200. `mvn -pl tmpl-rest-api test` passa.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-015
 
 ---
 
@@ -306,6 +309,7 @@
   - `tmpl-rest-api/src/test/java/com/securemicro/tmpl/restapi/config/ActuatorConfigurationTest.java`
 - **Descrição**: Configurar via `ActuatorConfiguration` e `application.yml` (seção management): (1) expor `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/prometheus` sem autenticação (ACs INI-08, INI-20, INI-18); (2) garantir que os health details não exponham informações sensíveis (versões internas, stack traces). Verificar que `/actuator/prometheus` retorna métricas com prefixos `http_server_requests`, `jvm_`. Marcar com `// CONTROL: RN-05`, `// CONTROL: INI-18`, `// CONTROL: INI-20`.
 - **Critério de verificação**: Teste de integração: `GET /actuator/health` retorna 200 sem token; `GET /actuator/prometheus` retorna 200 sem token com corpo contendo `http_server_requests` e `jvm_memory`.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-016
 
 ---
 
@@ -323,6 +327,7 @@
   - `tmpl-rest-api/src/test/java/com/securemicro/tmpl/restapi/security/SecurityErrorHandlerTest.java`
 - **Descrição**: Implementar `SecurityErrorHandler` que trata os edge cases definidos no spec: (1) token expirado → HTTP 401 com `{"error":"unauthorized"}` sem detalhe sobre motivo (edge case do spec); (2) Keycloak inacessível → HTTP 503 com `{"error":"service_unavailable"}` sem detalhe interno, mas com log interno detalhado; (3) garantir que stack traces nunca apareçam no body de resposta (RN-10). Marcar com `// CONTROL: RN-10`, `// CONTROL: INI-04`.
 - **Critério de verificação**: Testes unitários: (a) Jwt expirado → 401 sem campo `exception` no body; (b) IDP inacessível → 503 com body genérico; (c) nenhum body de erro contém a string `stackTrace` ou `at com.`. `mvn -pl tmpl-rest-api test` passa.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-017
 
 ---
 
@@ -340,6 +345,7 @@
   - `tmpl-rest-api/src/test/java/com/securemicro/tmpl/restapi/integration/AuditTrailIntegrationTest.java`
 - **Descrição**: Implementar testes de integração usando WireMock para simular o JWKS endpoint do Keycloak: (1) `AuthenticationIntegrationTest` — verifica ACs INI-04, INI-05, INI-07, INI-08: 401 sem token, 403 com role errada, 200 com role correta, 200 no health sem token, 401 com token expirado; (2) `AuditTrailIntegrationTest` — verifica AC INI-17: POST /api/v1/resources com token ADMIN emite log com `event-type=AUDIT` contendo subject, action, timestamp e result.
 - **Critério de verificação**: `mvn -pl tmpl-rest-api verify` passa com todos os testes de integração verdes. Critérios de aceite técnico 3 e 6 do plano verificados.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-018
 
 ---
 
@@ -357,6 +363,7 @@
   - `tmpl-rest-api/pom.xml`
 - **Descrição**: Configurar build de container reproduzível. Adicionar `cyclonedx-maven-plugin:2.x` e `jib-maven-plugin` no `pom.xml` do `tmpl-rest-api`. Criar `Dockerfile` multi-stage como referência alternativa ao Jib, usando `eclipse-temurin:17-jre-alpine` como base, usuário não-root, read-only filesystem. Configurar `jib` com `project.build.outputTimestamp` fixo para garantir reprodutibilidade de digest (AC INI-24). Adicionar plugin `cyclonedx-maven-plugin` para geração de SBOM em `target/bom.xml` (AC INI-22). Marcar com `# CONTROL: RN-03`, `# CONTROL: RN-09`.
 - **Critério de verificação**: `mvn -pl tmpl-rest-api package cyclonedx:makeAggregateBom` gera `target/bom.xml` em formato CycloneDX. Dois builds consecutivos com mesmo código produzem imagem com mesmo digest (verificável com `docker inspect --format='{{.Id}}'`).
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-019
 
 ---
 
@@ -374,6 +381,7 @@
   - `docs/threat-models/tmpl-rest-api-threat-model.md`
 - **Descrição**: Redigir o threat model STRIDE completo do `tmpl-rest-api` contendo obrigatoriamente (AC INI-29): (1) trust boundaries (cliente externo, serviço, Keycloak, Vault, serviços downstream); (2) atores (engenheiro, revisor AppSec, atacante externo); (3) fluxo de dados com diagrama textual; (4) ameaças STRIDE analisadas para cada componente; (5) ameaças explicitamente fora do escopo. O arquivo em `docs/threat-models/` é o espelho do que está no template (conforme arquitetura do plano). O CI deve verificar que este arquivo existe e não está vazio (AC INI-28).
 - **Critério de verificação**: Ambos os arquivos existem, têm mais de 200 linhas e contêm as seções obrigatórias: "Trust Boundaries", "STRIDE", "Out of Scope". Gate CI do TASK-025 valida isso automaticamente.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-020 (3ª rodada manual após BLOQUEADA_NEEDS_HUMAN; fixes aplicados pelo orquestrador)
 
 ---
 
@@ -391,6 +399,7 @@
   - `docs/control-mappings/tmpl-rest-api-controls.md`
 - **Descrição**: Redigir o mapeamento completo de controles para fontes federais (AC INI-27): cada controle implementado (RN-01 a RN-10, INI-04 a INI-21) mapeado à cláusula específica de EO 14028, NIST SP 800-53 rev5 ou CISA Guidance. Incluir referência ao arquivo e marcação `// CONTROL:` correspondente no código. O arquivo em `docs/control-mappings/` é o espelho do que está no template. A rastreabilidade bidirecional (INI-30) exige que cada ID listado aqui tenha um `// CONTROL: <ID>` no código implementado nas tasks anteriores.
 - **Critério de verificação**: Arquivo contém tabela com colunas `Control ID`, `Descrição`, `Fonte Federal`, `Cláusula`, `Arquivo de Código`. Mínimo 15 controles mapeados. Gate CI do TASK-025 verifica presença de cada `CONTROL: <ID>` no código.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-021
 
 ---
 
@@ -408,6 +417,7 @@
   - `reference-deploy/vault/vault-dev-init.sh`
 - **Descrição**: Criar `docker-compose.yml` que sobe os 4 serviços com um único `docker compose up -d` (AC INI-32): `keycloak:24.x` com healthcheck, `vault:1.17.x` em modo dev com healthcheck, `tmpl-rest-api` aguardando Keycloak e Vault via `depends_on: condition: service_healthy`, `jaegertracing/all-in-one:1.57`. Criar `vault-dev-init.sh` que faz seed dos paths KV v2 (`secret/tmpl-rest-api/keycloak`, `secret/tmpl-rest-api/service`, `secret/tmpl-rest-api/db`) com valores de placeholder para dev (AC INI-33). Documentar explicitamente no compose e no script que modo dev NÃO é para produção. Marcar com `# CONTROL: RN-01`.
 - **Critério de verificação**: `docker compose up -d` seguido de `docker compose ps` mostra todos os 4 serviços em estado `healthy` (ou running) sem intervenção manual. `vault-dev-init.sh` executa sem erros e paths ficam acessíveis via `vault kv get`.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-022
 
 ---
 
@@ -425,6 +435,7 @@
   - `reference-deploy/docker-compose.yml`
 - **Descrição**: Criar `realm-export.json` do realm de referência do Keycloak conforme seção 4.2 do plano: `otpPolicyType: totp`, `browserFlow: browser-with-otp` (MFA obrigatório, AC INI-09), client `tmpl-rest-api` confidencial com `publicClient: false`, roles `ROLE_SERVICE_USER` e `ROLE_SERVICE_ADMIN`. O client-secret deve ser referenciado como instrução `${VAULT_MANAGED}` — não deve conter valor real (RN-01). Atualizar `docker-compose.yml` para importar o realm automaticamente via `--import-realm` no Keycloak. Marcar com `// CONTROL: INI-09`, `// CONTROL: RN-02`.
 - **Critério de verificação**: `docker compose up -d` → Keycloak sobe com o realm importado; `GET /realms/tmpl-rest-api/.well-known/openid-configuration` retorna 200. Arquivo `realm-export.json` não contém nenhum valor de secret em texto claro (`trufflehog filesystem reference-deploy/keycloak/` → zero findings).
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-023 (2ª rodada QA após fixes de bind-mount e _comment/_control)
 
 ---
 
@@ -442,6 +453,7 @@
   - `reference-deploy/docker-compose.yml`
 - **Descrição**: Redigir o guia de quickstart (AC INI-31, INI-34) com pré-requisitos, sequência exata de comandos e resultados esperados: (1) verificar Docker instalado (edge case do spec — detectar ausência e exibir aviso); (2) `docker compose pull` para pré-download das imagens; (3) `docker compose up -d`; (4) obter token JWT do Keycloak via `curl`; (5) chamar endpoint autenticado; (6) ver log JSON no stdout; (7) acessar `/actuator/prometheus`; (8) acessar Jaeger UI em `localhost:16686`. Cada passo com comando exato e output esperado. Documentar explicitamente que Vault dev mode NÃO é para produção (AC INI-33) com referência às seções de produção do PRD (AC INI-35).
 - **Critério de verificação**: Sequência de comandos do guia executada em máquina limpa (apenas Docker instalado) completa em menos de 30 minutos com imagens pré-baixadas. Cada curl retorna o status HTTP esperado documentado no guia.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-024 (2ª rodada QA wave após fix da inconsistência Opção B Vault↔Keycloak)
 
 ---
 
@@ -459,6 +471,7 @@
   - `.github/workflows/sbom.yml`
 - **Descrição**: Criar `ci.yml` com steps: (1) `mvn clean verify` — build + testes; (2) `trufflehog filesystem .` — varredura de secrets, falha se encontrar padrão (AC INI-15, RN-01); (3) `trivy fs --exit-code 1 --severity CRITICAL,HIGH .` — CVE scan, falha em CVE crítica ou alta (AC INI-25, RN-08); (4) script que verifica que `threat-model.md` existe e não está vazio (AC INI-28, RN-06); (5) script de rastreabilidade bidirecional: para cada `CONTROL: <ID>` no `control-mapping.md`, verifica que existe ao menos uma ocorrência de `// CONTROL: <ID>` no código (INI-30, plano risco R-04). Criar `sbom.yml` que gera o SBOM CycloneDX e o associa como artifact do workflow (AC INI-22, INI-26).
 - **Critério de verificação**: Push em branch dispara o workflow; build falha intencionalmente ao: (a) introduzir secret em texto claro em qualquer arquivo; (b) `threat-model.md` ser esvaziado; (c) dependência com CVE crítica conhecida ser adicionada. Build passa no estado limpo do repositório.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-025
 
 ---
 
@@ -527,6 +540,7 @@
   - `docs/quickstart/tmpl-rest-api-quickstart.md`
 - **Descrição**: Executar e validar o fluxo completo de quickstart conforme critérios de aceite técnicos 1–12 do plano seção 10: (1) `docker compose up -d` → todos os serviços healthy; (2) `curl` no Keycloak para obter token JWT; (3) `curl` nos endpoints autenticados com as respostas esperadas; (4) verificar log JSON estruturado no stdout do container; (5) `curl /actuator/prometheus` retorna métricas com prefixos `http_server_requests` e `jvm_`; (6) Jaeger UI em `localhost:16686` exibe traces; (7) `trufflehog filesystem .` → zero findings no repositório completo. Documentar o tempo total medido no guia de quickstart.
 - **Critério de verificação**: Todos os 12 critérios de aceite técnicos do plano seção 10 verificados manualmente e documentados. Tempo total do quickstart ≤ 30 minutos com imagens pré-baixadas (AC INI-31). `trufflehog` retorna zero findings.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-029 (bug fix sme-cli/templates.py + 9/12 ACs verificados; 3 NOT_TESTED requerem Docker)
 
 ---
 
@@ -544,6 +558,7 @@
   - `sme-cli/README.md`
 - **Descrição**: Criar `README.md` raiz do repositório com: (1) descrição do projeto SecureMicro-Energy-Templates e propósito; (2) tabela de status de todos os componentes declarando explicitamente "Phase 1 — implementado" ou "Phase 2 — planejado" (AC INI-02); (3) link para o guia de quickstart; (4) pré-requisitos (Docker, Java 17, Maven, Python 3.11); (5) referências às fontes federais (EO 14028, NIST SP 800-53, CISA). Criar `sme-cli/README.md` com instruções de instalação e uso do CLI.
 - **Critério de verificação**: `README.md` contém tabela com todos os componentes listados na estrutura da seção 3.1 do plano, cada um com status explícito. Contém link funcional para `docs/quickstart/tmpl-rest-api-quickstart.md`.
+- **Status**: ✅ APROVADA em 2026-05-17 — branch: feature/initial-TASK-030
 
 ---
 
