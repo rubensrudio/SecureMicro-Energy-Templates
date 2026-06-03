@@ -3,8 +3,9 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/badge/release-v0.1.0-green.svg)](CHANGELOG.md)
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](#prerequisites)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.11-brightgreen.svg)](#prerequisites)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.14-brightgreen.svg)](#prerequisites)
 [![Tests](https://img.shields.io/badge/tests-31%20Java%20%2F%2062%20CLI-success.svg)](docs/benchmarks/README.md)
+[![CVE gate](https://img.shields.io/badge/Trivy-0%20CRITICAL%2FHIGH-success.svg)](docs/benchmarks/README.md)
 [![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-blueviolet.svg)](docs/benchmarks/README.md)
 
 > Federal alignment: **EO 14028** · **NIST SP 800-53 Rev 5** · **CISA Secure by Design**

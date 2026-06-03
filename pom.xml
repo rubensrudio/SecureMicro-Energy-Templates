@@ -10,8 +10,8 @@
          GroupId   : com.securemicro
          Version   : 0.1.0-SNAPSHOT
          Purpose   : Declares all child modules and manages dependency
-                     versions via Spring Boot 3.3.x and Spring Cloud
-                     2023.x BOMs.  No application code lives here.
+                     versions via Spring Boot 3.5.x and Spring Cloud
+                     2025.x BOMs.  No application code lives here.
          ================================================================ -->
 
     <groupId>com.securemicro</groupId>
@@ -53,20 +53,37 @@
         <project.build.outputTimestamp>2026-05-16T00:00:00Z</project.build.outputTimestamp>
 
         <!-- BOM versions -->
-        <spring-boot.version>3.3.11</spring-boot.version>
-        <spring-cloud.version>2023.0.5</spring-cloud.version>
+        <!-- Spring Boot bumped 3.3.11 -> 3.5.14 to remediate CVE-2026-40973
+             (spring-boot RCE/session hijack) and CVE-2026-22733 (actuator auth
+             bypass), neither of which has a fix in the 3.3/3.4 line. The 3.5 BOM
+             also pulls Spring Framework 6.2.x (fixes CVE-2025-41249) and Spring
+             Security 6.5.x (fixes CVE-2026-22732, CRITICAL). CONTROL: RN-08 | INI-25 -->
+        <spring-boot.version>3.5.14</spring-boot.version>
+        <!-- Spring Cloud release train aligned to Spring Boot 3.5 (was 2023.0.5
+             for Boot 3.3). -->
+        <spring-cloud.version>2025.0.0</spring-cloud.version>
 
         <!-- Third-party library versions managed here so child POMs
              need only declare groupId + artifactId. -->
         <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
         <opentelemetry-spring-boot.version>2.14.0</opentelemetry-spring-boot.version>
         <cyclonedx-maven-plugin.version>2.9.1</cyclonedx-maven-plugin.version>
-        <!-- SpringDoc 2.6.x is the last series compatible with Spring Boot 3.3.x
-             (Spring Framework 6.1.x). SpringDoc 2.7+ requires Spring Framework 6.2
-             (LiteWebJarsResourceResolver), which ships with Spring Boot 3.4+. -->
-        <springdoc-openapi.version>2.6.0</springdoc-openapi.version>
+        <!-- SpringDoc 2.8.x targets Spring Framework 6.2 (Spring Boot 3.4/3.5).
+             2.6.x was pinned for Boot 3.3.x (Framework 6.1); bumped with the
+             Boot 3.5 upgrade. -->
+        <springdoc-openapi.version>2.8.9</springdoc-openapi.version>
         <wiremock.version>3.13.0</wiremock.version>
         <jib-maven-plugin.version>3.4.5</jib-maven-plugin.version>
+
+        <!-- CVE overrides. NOTE: because this POM *imports* the Spring Boot BOM
+             (scope=import) instead of inheriting spring-boot-starter-parent,
+             redefining the BOM's version properties (netty.version,
+             bouncycastle.version) has NO effect — an imported BOM resolves with
+             its own properties. The override must be expressed as explicit
+             dependencyManagement (see below): a netty-bom import declared before
+             the Boot BOM, and explicit BouncyCastle entries. CONTROL: RN-08 | INI-25 -->
+        <netty.version>4.1.133.Final</netty.version>
+        <bouncycastle.version>1.84</bouncycastle.version>
     </properties>
 
     <!-- ================================================================
@@ -75,6 +92,39 @@
          ================================================================ -->
     <dependencyManagement>
         <dependencies>
+
+            <!-- CVE override: Netty BOM imported BEFORE the Spring Boot BOM so it
+                 wins the version conflict (first-declared import wins). Pins all
+                 io.netty:* to 4.1.133.Final, remediating CVE-2026-42583/42579/
+                 42584/42587 (and earlier netty-codec CVEs) which are NOT fixed by
+                 the 4.1.132 that Spring Boot 3.5.14 manages. CONTROL: RN-08 | INI-25 -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- CVE override: BouncyCastle 1.80 -> 1.84 remediates CVE-2026-5598
+                 (private-key leakage via non-constant-time comparison). Explicit
+                 entries override the Boot-managed version regardless of import
+                 order. CONTROL: RN-08 | INI-25 -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
 
             <!-- Spring Boot BOM — manages spring-boot-*, spring-security-*,
                  micrometer-*, logback-*, jackson-*, etc. -->

@@ -19,7 +19,7 @@ Source: [`../validation/TASK-029-e2e-validation-report.md`](../validation/TASK-0
 | sme-cli tests | **62 passed** in 0.42s | `cd sme-cli && pytest -q` |
 | Reactor build time | **52.9s** (6 modules, cold) | `mvn clean install` |
 | Slowest module | tmpl-rest-api — 24.7s | reactor summary |
-| SBOM components | **166** (CycloneDX 1.4) | `tmpl-rest-api/target/bom.json` |
+| SBOM components | **167** (CycloneDX 1.4) | `tmpl-rest-api/target/bom.json` |
 | Controls mapped | **21** unique (RN + INI) | `control-mapping.md` |
 | Control ↔ code traceability | **100%** — every control has ≥1 `CONTROL:` ref | AC-11 |
 | Secrets in repo (real) | **0** | AC-4 (grep / trufflehog) |
@@ -44,6 +44,12 @@ Source: [`../validation/TASK-029-e2e-validation-report.md`](../validation/TASK-0
 | SBOM per build | required | CycloneDX Maven plugin (`makeAggregateBom`) → `bom.xml` + `bom.json` |
 | Critical/High CVEs | **0** (build fails otherwise) | CVE gate in CI (EO 14028 §4(e), NIST SI-2) |
 | Secret scanning | clean | `trufflehog` on every PR |
+
+> **2026-06-03 remediation:** Trivy flagged 1 CRITICAL + many HIGH (Spring
+> Security auth bypass, Spring Boot, Spring Core, Netty, BouncyCastle). Fixed by
+> upgrading Spring Boot 3.3.11 → **3.5.14** (pulls Spring Security 6.5.10 +
+> Spring Framework 6.2.18), plus an explicit Netty BOM **4.1.133.Final** and
+> BouncyCastle **1.84** override. All 31 Java tests still green; CVE gate clean.
 
 ---
 

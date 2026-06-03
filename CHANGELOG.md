@@ -10,10 +10,22 @@ First public reference release. Phase 1 scope: REST API template + four shared
 security libraries + scaffold CLI, all aligned to EO 14028 / NIST SP 800-53
 Rev 5 / CISA Secure by Design.
 
+### Security
+- Upgraded **Spring Boot 3.3.11 → 3.5.14** to remediate the CVE gate (Trivy)
+  findings: CVE-2026-22732 (spring-security-web, CRITICAL — policy bypass),
+  CVE-2026-40973 (spring-boot), CVE-2026-22733 (actuator) and CVE-2025-41249
+  (spring-core). The 3.5 BOM pulls Spring Security 6.5.10 + Spring Framework
+  6.2.18. Spring Cloud → 2025.0.0, SpringDoc → 2.8.9.
+- Pinned **Netty 4.1.133.Final** (netty-bom imported before the Boot BOM) and
+  **BouncyCastle 1.84** via explicit dependencyManagement — property overrides
+  alone are inert when the Boot BOM is imported rather than inherited. Clears
+  the netty-codec request-smuggling / HTTP-2 DoS CVEs and CVE-2026-5598.
+- Result: **0 CRITICAL/HIGH** in the Trivy gate; all 31 Java tests still pass.
+
 ### Added
-- **tmpl-rest-api** — Spring Boot 3.3.11 WebFlux REST template with OIDC auth,
+- **tmpl-rest-api** — Spring Boot 3.5.14 WebFlux REST template with OIDC auth,
   Vault-backed secrets, JSON audit logging, Micrometer metrics, OTel tracing,
-  CycloneDX SBOM (166 components) and a 568-line STRIDE threat model.
+  CycloneDX SBOM (167 components) and a 568-line STRIDE threat model.
 - **shared-controls** — `SecurityHeadersFilter` (HSTS, CSP, X-Frame-Options) +
   `GlobalExceptionHandler` (no stack-trace leakage).
 - **shared-observability** — structured JSON logging, Micrometer/Prometheus,
