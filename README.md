@@ -1,5 +1,16 @@
 # SecureMicro-Energy-Templates
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/release-v0.1.0-green.svg)](CHANGELOG.md)
+[![Java](https://img.shields.io/badge/Java-17-orange.svg)](#prerequisites)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.11-brightgreen.svg)](#prerequisites)
+[![Tests](https://img.shields.io/badge/tests-31%20Java%20%2F%2062%20CLI-success.svg)](docs/benchmarks/README.md)
+[![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-blueviolet.svg)](docs/benchmarks/README.md)
+
+> Federal alignment: **EO 14028** · **NIST SP 800-53 Rev 5** · **CISA Secure by Design**
+>
+> Jump to: [Architecture](docs/architecture/README.md) · [Demo](docs/demo/README.md) · [Benchmarks](docs/benchmarks/README.md) · [Screenshots](docs/screenshots/README.md) · [Validation](docs/validation/) · [Changelog](CHANGELOG.md)
+
 Production-grade microservice templates for the US energy sector, aligned to
 **EO 14028** (Improving the Nation's Cybersecurity), **NIST SP 800-53 Rev 5**,
 and **CISA Secure by Design Guidance**.
@@ -49,6 +60,71 @@ SecureMicro-Energy-Templates/
     ├── threat-models/
     └── quickstart/
 ```
+
+---
+
+## Architecture
+
+Visual reference — system context, module graph, and the auth / secrets /
+observability flows — lives in
+[`docs/architecture/README.md`](docs/architecture/README.md) (Mermaid, renders
+on GitHub).
+
+```mermaid
+flowchart LR
+    cli["sme-cli"] -->|scaffolds| svc["tmpl-rest-api<br/>(Spring Boot 3 WebFlux)"]
+    svc --> ctrl["shared-controls"] & obs["shared-observability"] & id["shared-identity"] & sec["shared-secrets"]
+    client["API client"] -->|Bearer JWT| svc
+    svc -->|validate JWT| kc["Keycloak"]
+    svc -->|secrets @ runtime| vault["Vault KV v2"]
+    svc -->|OTLP| jaeger["Jaeger"]
+    prom["Prometheus"] -->|scrape| svc
+```
+
+---
+
+## Demo
+
+- **No Docker (30s):** scaffold + build a service with `sme-cli`.
+- **Full stack:** Keycloak + Vault + service + Jaeger, walking 401 → 200 → audit
+  → trace.
+
+Both scripts (with asciinema recording steps):
+[`docs/demo/README.md`](docs/demo/README.md).
+
+---
+
+## Screenshots
+
+Visual evidence of the running stack (health, auth, Keycloak, Vault, Prometheus,
+Jaeger trace, audit log). Capture guide and required filenames:
+[`docs/screenshots/README.md`](docs/screenshots/README.md).
+
+> Screenshots are pending a Docker-enabled run (the validation environment had
+> no Docker). The guide makes them reproducible, not missing by oversight.
+
+---
+
+## Benchmarks & metrics
+
+Measured today (TASK-029): **31 Java tests / 62 CLI tests pass**, 52.9s reactor
+build, **166-component CycloneDX SBOM**, **21 controls at 100% code
+traceability**, **0 real secrets**. Runtime latency/throughput methodology
+(pending Docker run) and full tables:
+[`docs/benchmarks/README.md`](docs/benchmarks/README.md).
+
+> Not an ML project — there is no trained model, so "model metrics" do not
+> apply; the meaningful metrics are build/test, supply-chain, and runtime.
+
+---
+
+## Validation
+
+- **Internal:** [E2E validation report](docs/validation/TASK-029-e2e-validation-report.md)
+  — 9 PASS / 3 NOT_TESTED.
+- **External (tracker):** [`docs/validation/EXTERNAL-VALIDATION.md`](docs/validation/EXTERNAL-VALIDATION.md)
+  — OpenSSF Scorecard, SLSA provenance, signed SBOM, CodeQL, independent AppSec
+  review. Each claim flips to ✅ only with a verifiable link.
 
 ---
 
@@ -165,5 +241,7 @@ pytest
 
 ## License
 
-See `LICENSE` file for terms. Templates are provided as-is for educational and
-reference purposes; adopters are responsible for their own compliance posture.
+Licensed under the **Apache License 2.0** — see [`LICENSE`](LICENSE) and
+[`NOTICE`](NOTICE). Templates are provided as-is for educational and reference
+purposes; adopters are responsible for their own compliance posture and
+authorization to operate.
